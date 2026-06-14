@@ -1,1 +1,2 @@
+{"version":"0.1.1","date":"2026-06-14","title":"更新下载与应用图标","content":["新增 GitHub Release 在线下载更新能力，并显示下载进度条","关于系统页面展示安装包和便携包资产，可打开文件夹或运行安装包","Windows 打包改用会话管家自定义图标"],"releaseUrl":"https://github.com/JnmHub/codex-session-manager/releases/tag/v0.1.1","critical":false}
 {"version":"0.1.0","date":"2026-06-14","title":"首个开源 MVP","content":["Electron 桌面应用版本准备开源发布","支持会话管理、路径绑定、Profile 管理、Codex 配置、LLM 助手","新增 GitHub Release 更新检测、公告中心和关于页面"],"releaseUrl":"https://github.com/JnmHub/codex-session-manager/releases/tag/v0.1.0","critical":false}

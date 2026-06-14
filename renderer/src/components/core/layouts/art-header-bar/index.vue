@@ -160,6 +160,14 @@
             <div class="feed-actions">
               <ElButton link type="primary" @click="goAbout">查看记录</ElButton>
               <ElButton
+                link
+                type="success"
+                :loading="downloadState.downloading"
+                @click="downloadUpdate('setup')"
+              >
+                下载更新
+              </ElButton>
+              <ElButton
                 v-if="updateFeed?.latest?.releaseUrl || appInfo?.releasesUrl"
                 link
                 type="primary"
@@ -167,6 +175,17 @@
               >
                 打开 Release
               </ElButton>
+            </div>
+            <div v-if="downloadState.downloading || downloadState.filePath" class="download-box">
+              <div class="download-meta">
+                <span>{{ downloadState.downloading ? '正在下载' : '下载完成' }}</span>
+                <strong>{{ downloadState.percent }}%</strong>
+              </div>
+              <ElProgress :percentage="downloadState.percent" :status="downloadState.filePath ? 'success' : undefined" />
+              <div v-if="downloadState.filePath" class="feed-actions">
+                <ElButton link type="primary" @click="openDownloaded('folder')">打开文件夹</ElButton>
+                <ElButton link type="success" @click="openDownloaded('file')">运行安装包</ElButton>
+              </div>
             </div>
           </div>
         </ElPopover>
@@ -229,11 +248,13 @@
   import { themeAnimation } from '@/utils/ui/animation'
   import { useCommon } from '@/hooks/core/useCommon'
   import { useHeaderBar } from '@/hooks/core/useHeaderBar'
+  import { ElMessage } from 'element-plus'
   import {
     apiRequest,
     type AnnouncementEntry,
     type AnnouncementFeed,
     type AppInfo,
+    type UpdateDownloadResult,
     type UpdateFeed
   } from '@/utils/session-manager-api'
 
@@ -274,6 +295,12 @@
   const updateFeed = ref<UpdateFeed>()
   const announcements = ref<AnnouncementEntry[]>([])
   const announcementCount = computed(() => Math.min(announcements.value.length, 99))
+  const downloadState = reactive({
+    downloading: false,
+    percent: 0,
+    filePath: '',
+    fileName: ''
+  })
 
   // 菜单类型判断
   const isLeftMenu = computed(() => menuType.value === MenuTypeEnum.LEFT)
@@ -393,6 +420,56 @@
   function openUrl(url?: string) {
     if (!url) return
     window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  function downloadUpdate(kind: 'setup' | 'portable') {
+    if (downloadState.downloading) return
+    downloadState.downloading = true
+    downloadState.percent = 0
+    downloadState.filePath = ''
+    downloadState.fileName = ''
+
+    const source = new EventSource(`/api/update/download/stream?kind=${kind}`)
+
+    source.addEventListener('progress', (event) => {
+      const data = JSON.parse((event as MessageEvent).data) as { percent: number }
+      downloadState.percent = data.percent
+    })
+
+    source.addEventListener('done', (event) => {
+      const data = JSON.parse((event as MessageEvent).data) as UpdateDownloadResult
+      downloadState.downloading = false
+      downloadState.percent = 100
+      downloadState.filePath = data.filePath
+      downloadState.fileName = data.fileName
+      source.close()
+      ElMessage.success(`已下载 ${data.fileName}`)
+    })
+
+    source.addEventListener('fail', (event) => {
+      downloadState.downloading = false
+      source.close()
+      const data = JSON.parse((event as MessageEvent).data) as { error?: string }
+      ElMessage.error(data.error || '下载失败')
+    })
+
+    source.onerror = () => {
+      if (!downloadState.downloading) return
+      downloadState.downloading = false
+      source.close()
+      ElMessage.error('下载连接中断')
+    }
+  }
+
+  async function openDownloaded(mode: 'file' | 'folder') {
+    if (!downloadState.filePath) return
+    await apiRequest('/api/update/open', {
+      method: 'POST',
+      body: {
+        path: downloadState.filePath,
+        mode
+      }
+    })
   }
 
 </script>
@@ -641,6 +718,24 @@
       line-height: 20px;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
+    }
+  }
+
+  .download-box {
+    display: grid;
+    gap: 8px;
+    padding-top: 2px;
+  }
+
+  .download-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--art-gray-600);
+    font-size: 13px;
+
+    strong {
+      color: var(--art-gray-900);
     }
   }
 </style>

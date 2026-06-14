@@ -2,6 +2,7 @@ node_modules/
 renderer/node_modules/
 dist/
 release/
+build/
 tmp-verify/
 
 .DS_Store

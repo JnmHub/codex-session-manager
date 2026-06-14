@@ -1,6 +1,6 @@
 {
   "name": "codex-session-manager",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A modern CLI and local web UI for managing Codex CLI sessions.",
   "type": "module",
   "main": "dist/electron/main.js",
@@ -19,7 +19,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc && npm --prefix renderer run build",
+    "build": "npm run build:icon && tsc && npm --prefix renderer run build",
+    "build:icon": "node scripts/build-icon.mjs",
     "build:renderer": "npm --prefix renderer run build",
     "app": "npm run build && electron dist/electron/main.js",
     "dist:win": "npm run build && electron-builder --win --x64 --publish never",
@@ -50,6 +51,7 @@
       }
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -97,6 +99,8 @@
     "@types/react": "^19.2.7",
     "electron": "^42.4.0",
     "electron-builder": "^26.0.12",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.35.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }

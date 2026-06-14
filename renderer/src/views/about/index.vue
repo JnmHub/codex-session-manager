@@ -87,7 +87,49 @@
             <ElButton link type="primary" @click="openUrl(updateFeed.latest?.releaseUrl || appInfo?.releasesUrl)">
               打开 Release
             </ElButton>
+            <ElButton link type="success" :loading="downloadState.downloading" @click="downloadUpdate('setup')">
+              下载更新
+            </ElButton>
           </ElAlert>
+
+          <div class="download-panel">
+            <div class="download-head">
+              <div>
+                <strong>在线下载</strong>
+                <span>{{ updateAssets?.tagName || 'latest' }}</span>
+              </div>
+              <div>
+                <ElButton :loading="loadingAssets" @click="loadUpdateAssets">刷新资产</ElButton>
+                <ElButton type="primary" :loading="downloadState.downloading" @click="downloadUpdate('setup')">
+                  下载安装包
+                </ElButton>
+                <ElButton :loading="downloadState.downloading" @click="downloadUpdate('portable')">
+                  下载便携包
+                </ElButton>
+              </div>
+            </div>
+            <ElProgress
+              v-if="downloadState.downloading || downloadState.filePath"
+              :percentage="downloadState.percent"
+              :status="downloadState.filePath ? 'success' : undefined"
+            />
+            <div v-if="downloadState.filePath" class="download-actions">
+              <span>{{ downloadState.fileName }}</span>
+              <ElButton link type="primary" @click="openDownloaded('folder')">打开文件夹</ElButton>
+              <ElButton link type="success" @click="openDownloaded('file')">运行安装包</ElButton>
+            </div>
+            <ElTable :data="downloadAssets" size="small" class="asset-table" empty-text="暂无可下载资产">
+              <ElTableColumn prop="name" label="文件" min-width="260" />
+              <ElTableColumn label="类型" width="100">
+                <template #default="{ row }">
+                  <ElTag size="small" effect="light">{{ assetKindLabel(row.kind) }}</ElTag>
+                </template>
+              </ElTableColumn>
+              <ElTableColumn label="大小" width="120">
+                <template #default="{ row }">{{ formatBytes(row.size) }}</template>
+              </ElTableColumn>
+            </ElTable>
+          </div>
 
           <ElTable
             v-loading="loading"
@@ -127,20 +169,34 @@
 </template>
 
 <script setup lang="ts">
-  import { onMounted, ref } from 'vue'
+  import { computed, onMounted, reactive, ref } from 'vue'
   import { ElMessage } from 'element-plus'
   import {
     apiRequest,
     getErrorMessage,
     type AnnouncementFeed,
     type AppInfo,
+    type UpdateAsset,
+    type UpdateAssetsFeed,
+    type UpdateDownloadResult,
     type UpdateFeed
   } from '@/utils/session-manager-api'
 
   const loading = ref(false)
+  const loadingAssets = ref(false)
   const appInfo = ref<AppInfo>()
   const updateFeed = ref<UpdateFeed>()
   const announcementFeed = ref<AnnouncementFeed>()
+  const updateAssets = ref<UpdateAssetsFeed>()
+  const downloadState = reactive({
+    downloading: false,
+    percent: 0,
+    filePath: '',
+    fileName: ''
+  })
+  const downloadAssets = computed(() =>
+    (updateAssets.value?.assets || []).filter((asset) => asset.kind === 'setup' || asset.kind === 'portable')
+  )
 
   onMounted(loadFeeds)
 
@@ -155,10 +211,22 @@
       appInfo.value = infoData
       updateFeed.value = updateData
       announcementFeed.value = announcementData
+      await loadUpdateAssets()
     } catch (error) {
       ElMessage.error(getErrorMessage(error))
     } finally {
       loading.value = false
+    }
+  }
+
+  async function loadUpdateAssets() {
+    loadingAssets.value = true
+    try {
+      updateAssets.value = await apiRequest<UpdateAssetsFeed>('/api/update/assets')
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error))
+    } finally {
+      loadingAssets.value = false
     }
   }
 
@@ -172,6 +240,64 @@
   function openUrl(url?: string) {
     if (!url) return
     window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  function downloadUpdate(kind: 'setup' | 'portable') {
+    if (downloadState.downloading) return
+    downloadState.downloading = true
+    downloadState.percent = 0
+    downloadState.filePath = ''
+    downloadState.fileName = ''
+
+    const source = new EventSource(`/api/update/download/stream?kind=${kind}`)
+    source.addEventListener('progress', (event) => {
+      const data = JSON.parse((event as MessageEvent).data) as { percent: number }
+      downloadState.percent = data.percent
+    })
+    source.addEventListener('done', (event) => {
+      const data = JSON.parse((event as MessageEvent).data) as UpdateDownloadResult
+      downloadState.downloading = false
+      downloadState.percent = 100
+      downloadState.filePath = data.filePath
+      downloadState.fileName = data.fileName
+      source.close()
+      ElMessage.success(`已下载 ${data.fileName}`)
+    })
+    source.addEventListener('fail', (event) => {
+      downloadState.downloading = false
+      source.close()
+      const data = JSON.parse((event as MessageEvent).data) as { error?: string }
+      ElMessage.error(data.error || '下载失败')
+    })
+    source.onerror = () => {
+      if (!downloadState.downloading) return
+      downloadState.downloading = false
+      source.close()
+      ElMessage.error('下载连接中断')
+    }
+  }
+
+  async function openDownloaded(mode: 'file' | 'folder') {
+    if (!downloadState.filePath) return
+    await apiRequest('/api/update/open', {
+      method: 'POST',
+      body: {
+        path: downloadState.filePath,
+        mode
+      }
+    })
+  }
+
+  function assetKindLabel(kind: UpdateAsset['kind']) {
+    if (kind === 'setup') return '安装包'
+    if (kind === 'portable') return '便携包'
+    return '其他'
+  }
+
+  function formatBytes(bytes: number) {
+    if (!bytes) return '-'
+    const mb = bytes / 1024 / 1024
+    return `${mb.toFixed(1)} MB`
   }
 </script>
 
@@ -259,6 +385,61 @@
 
   .update-alert {
     margin-bottom: 14px;
+  }
+
+  .download-panel {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 14px;
+    border: 1px solid var(--art-card-border);
+    border-radius: 8px;
+    background: var(--default-bg-color);
+  }
+
+  .download-head,
+  .download-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .download-head {
+    flex-wrap: wrap;
+
+    > div {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    strong {
+      color: var(--art-gray-900);
+      font-size: 15px;
+    }
+
+    span {
+      color: var(--art-gray-500);
+      font-size: 13px;
+    }
+  }
+
+  .download-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+
+    span {
+      color: var(--art-gray-700);
+    }
+  }
+
+  .asset-table {
+    :deep(.el-table__cell) {
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
   }
 
   .announcement-list {

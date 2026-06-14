@@ -35,6 +35,12 @@ import {
   listSessionWindowStatuses,
   reopenSessionWindow
 } from '../core/sessionWindows.js';
+import {
+  downloadLatestUpdate,
+  getLatestUpdateAssets,
+  openDownloadedUpdate,
+  type UpdateAssetKind
+} from '../core/updateDownloads.js';
 import type {LlmPermissionLevel} from '../types.js';
 
 type WebOptions = {
@@ -109,11 +115,17 @@ async function routeApi(
     return;
   }
 
+  if ((request.method ?? 'GET') === 'GET' && requestUrl.pathname === '/api/update/download/stream') {
+    await streamUpdateDownload(response, requestUrl);
+    return;
+  }
+
   const routes: Record<string, ApiHandler> = {
     'GET /api/health': async () => ({ok: true}),
     'GET /api/app-info': async () => getAppInfo(),
     'GET /api/updates': async () => getVersionFeed(),
     'GET /api/announcements': async () => getAnnouncementFeed(),
+    'GET /api/update/assets': async () => getLatestUpdateAssets(),
     'GET /api/sessions': async () => {
       const limit = Number(requestUrl.searchParams.get('limit') ?? 300);
       return {
@@ -236,6 +248,13 @@ async function routeApi(
       const payload = requireObject(body);
       return runCommand(requireString(payload.command, 'command'));
     },
+    'POST /api/update/open': async () => {
+      const payload = requireObject(body);
+      return openDownloadedUpdate(
+        requireString(payload.path, 'path'),
+        payload.mode === 'file' ? 'file' : 'folder'
+      );
+    },
     'POST /api/scan': async () => {
       const sessions = await scanSessions();
       return {count: sessions.length};
@@ -306,6 +325,30 @@ async function routeApi(
   }
 
   sendJson(response, 200, await handler(request, body));
+}
+
+async function streamUpdateDownload(response: http.ServerResponse, requestUrl: URL) {
+  const kind = requestUrl.searchParams.get('kind') === 'portable' ? 'portable' : 'setup';
+  response.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-store',
+    Connection: 'keep-alive'
+  });
+
+  const send = (event: string, data: unknown) => {
+    response.write(`event: ${event}\n`);
+    response.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    send('meta', {kind});
+    const result = await downloadLatestUpdate(kind as UpdateAssetKind, progress => send('progress', progress));
+    send('done', result);
+  } catch (error) {
+    send('fail', {error: error instanceof Error ? error.message : String(error)});
+  } finally {
+    response.end();
+  }
 }
 
 async function streamManagedChat(response: http.ServerResponse, body: unknown) {

@@ -60,3 +60,26 @@ export type UpdateFeed = {
 export type AnnouncementFeed = {
   entries: AnnouncementEntry[]
 }
+
+export type UpdateAsset = {
+  name: string
+  size: number
+  browserDownloadUrl: string
+  kind: 'setup' | 'portable' | 'other'
+}
+
+export type UpdateAssetsFeed = {
+  tagName: string
+  name: string
+  releaseUrl: string
+  publishedAt?: string
+  assets: UpdateAsset[]
+  recommended?: UpdateAsset
+}
+
+export type UpdateDownloadResult = {
+  asset: UpdateAsset
+  filePath: string
+  fileName: string
+  bytes: number
+}
