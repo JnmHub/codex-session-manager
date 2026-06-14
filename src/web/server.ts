@@ -22,7 +22,11 @@ import {
   getSession,
   listProjects,
   listSessions,
+  deleteSession,
+  setArchived,
   setBoundPath,
+  setCategory,
+  setFavorite,
   setSessionLaunchOptions,
   setNote,
   toggleArchived,
@@ -33,6 +37,7 @@ import {getSettings, updateSettings} from '../core/settings.js';
 import {deleteProfile, getProfileFiles, listProfiles, saveProfileFiles, upsertProfile} from '../core/profiles.js';
 import {createWorkspaceAndOpenSession} from '../core/newSession.js';
 import {getTranscript, resetTranscriptEdits, saveTranscriptEdits} from '../core/transcript.js';
+import {getProjectAgentsFile, saveProjectAgentsFile} from '../core/projectAgents.js';
 import {
   createLlmConversation,
   deleteLlmConversation,
@@ -55,6 +60,7 @@ import {
   openDownloadedUpdate,
   type UpdateAssetKind
 } from '../core/updateDownloads.js';
+import {defaultRegistryUrl, fetchSyncRegistryWithStatus, installSyncItems} from '../core/syncRegistry.js';
 import type {LlmPermissionLevel} from '../types.js';
 
 type WebOptions = {
@@ -139,6 +145,22 @@ async function routeApi(
     'GET /api/app-info': async () => getAppInfo(),
     'GET /api/updates': async () => getVersionFeed(),
     'GET /api/announcements': async () => getAnnouncementFeed(),
+    'GET /api/sync/registry': async () => {
+      return fetchSyncRegistryWithStatus({
+        url: optionalString(requestUrl.searchParams.get('url')) ?? defaultRegistryUrl,
+        skillScope: requireSkillScope(requestUrl.searchParams.get('skillScope') ?? 'global'),
+        projectPath: optionalString(requestUrl.searchParams.get('projectPath'))
+      });
+    },
+    'POST /api/sync/install': async () => {
+      const payload = requireObject(body);
+      return installSyncItems({
+        url: optionalString(payload.url) ?? defaultRegistryUrl,
+        items: Array.isArray(payload.items) ? payload.items as never : [],
+        skillScope: requireSkillScope(payload.skillScope ?? 'global'),
+        projectPath: optionalString(payload.projectPath)
+      });
+    },
     'GET /api/update/assets': async () => getLatestUpdateAssets(),
     'GET /api/sessions': async () => {
       const limit = Number(requestUrl.searchParams.get('limit') ?? 300);
@@ -188,6 +210,16 @@ async function routeApi(
       const payload = requireObject(body);
       return saveCodexFile(
         requireString(payload.name, 'name'),
+        optionalStringAllowEmpty(payload.content) ?? ''
+      );
+    },
+    'GET /api/project-agents': async () => {
+      return getProjectAgentsFile(requireString(requestUrl.searchParams.get('projectPath'), 'projectPath'));
+    },
+    'POST /api/project-agents': async () => {
+      const payload = requireObject(body);
+      return saveProjectAgentsFile(
+        requireString(payload.projectPath, 'projectPath'),
         optionalStringAllowEmpty(payload.content) ?? ''
       );
     },
@@ -374,6 +406,11 @@ async function routeApi(
       const session = await setNote(requireString(payload.id, 'id'), optionalStringAllowEmpty(payload.note) ?? '');
       return {session};
     },
+    'POST /api/category': async () => {
+      const payload = requireObject(body);
+      const session = await setCategory(requireString(payload.id, 'id'), optionalStringAllowEmpty(payload.category) ?? '');
+      return {session};
+    },
     'POST /api/bind': async () => {
       const payload = requireObject(body);
       const session = await setBoundPath(requireString(payload.id, 'id'), requireString(payload.path, 'path'));
@@ -396,6 +433,36 @@ async function routeApi(
       const payload = requireObject(body);
       const session = await toggleArchived(requireString(payload.id, 'id'));
       return {session};
+    },
+    'POST /api/sessions/batch': async () => {
+      const payload = requireObject(body);
+      const ids = Array.isArray(payload.ids) ? payload.ids.filter((id): id is string => typeof id === 'string') : [];
+      const action = requireString(payload.action, 'action');
+      const results: unknown[] = [];
+
+      for (const id of ids) {
+        if (action === 'favorite') {
+          results.push(await setFavorite(id, true));
+        } else if (action === 'unfavorite') {
+          results.push(await setFavorite(id, false));
+        } else if (action === 'archive') {
+          results.push(await setArchived(id, true));
+        } else if (action === 'unarchive') {
+          results.push(await setArchived(id, false));
+        } else if (action === 'delete') {
+          results.push(await deleteSession(id, {deleteFile: payload.deleteFile !== false}));
+        } else {
+          throw new Error(`Unknown batch action: ${action}`);
+        }
+      }
+
+      return {ok: true, count: results.length, results};
+    },
+    'DELETE /api/session': async () => {
+      const payload = requireObject(body);
+      return deleteSession(requireString(payload.id, 'id'), {
+        deleteFile: payload.deleteFile !== false
+      });
     }
   };
 

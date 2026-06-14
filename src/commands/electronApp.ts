@@ -20,7 +20,7 @@ export function electronAppCommand(options: {foreground?: boolean}) {
     child.on('exit', code => process.exit(code ?? 0));
   } else {
     child.unref();
-    console.log('会话管家桌面应用正在启动。');
+    console.log('Codex会话管家桌面应用正在启动。');
     process.exit(0);
   }
 }

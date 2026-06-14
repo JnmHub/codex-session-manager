@@ -71,6 +71,25 @@ export async function saveSkill(input: {scope: SkillScope; name: string; content
   return getSkill(input);
 }
 
+export async function saveSkillFiles(input: {
+  scope: SkillScope;
+  name: string;
+  files: Array<{path: string; content: string}>;
+  projectPath?: string;
+}) {
+  const root = resolveSkillRoot(input.scope, input.projectPath);
+  const directory = resolveChildDirectory(root, input.name);
+  await fs.mkdir(directory, {recursive: true});
+
+  for (const file of input.files) {
+    const target = resolveRelativeFile(directory, file.path);
+    await fs.mkdir(path.dirname(target), {recursive: true});
+    await fs.writeFile(target, file.content, 'utf8');
+  }
+
+  return getSkill(input);
+}
+
 export async function deleteSkill(input: {scope: SkillScope; name: string; projectPath?: string}) {
   const root = resolveSkillRoot(input.scope, input.projectPath);
   const directory = resolveChildDirectory(root, input.name);
@@ -166,6 +185,19 @@ function resolveChildDirectory(root: string, name: string) {
     throw new Error('路径越界');
   }
   return directory;
+}
+
+function resolveRelativeFile(root: string, relativePath: string) {
+  const normalized = relativePath.replace(/\\/g, '/').trim();
+  if (!normalized || normalized.startsWith('/') || normalized.includes('\0')) {
+    throw new Error('文件路径无效');
+  }
+  const target = path.resolve(root, normalized);
+  const relative = path.relative(path.resolve(root), target);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error('文件路径越界');
+  }
+  return target;
 }
 
 function sanitizeDirectoryName(name: string) {

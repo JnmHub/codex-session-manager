@@ -5,7 +5,7 @@
         <img src="@imgs/common/jnm-logo.svg" alt="logo" />
       </div>
       <div class="brand-copy">
-        <h2>{{ appInfo?.name || '会话管家' }}</h2>
+        <h2>{{ appInfo?.name || 'Codex会话管家' }}</h2>
         <p>统一管理 Codex CLI 会话、Profile、配置、LLM 助手、更新和公告。</p>
       </div>
       <div class="brand-actions">

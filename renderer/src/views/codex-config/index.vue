@@ -23,11 +23,12 @@
       <ElTabs v-model="activeFile" @tab-change="loadFile">
         <ElTabPane label="config.toml" name="config.toml" />
         <ElTabPane label="auth.json" name="auth.json" />
+        <ElTabPane label="AGENTS.md" name="AGENTS.md" />
       </ElTabs>
 
       <ElAlert
         v-if="activeFile === 'auth.json'"
-        title="auth.json 包含 API Key 等敏感字段。这个页面只在本机使用，不会把内容发送给会话管家之外的接口。"
+        title="auth.json 包含 API Key 等敏感字段。这个页面只在本机使用，不会把内容发送给 Codex会话管家之外的接口。"
         type="warning"
         show-icon
         :closable="false"
@@ -38,7 +39,14 @@
         <span>{{ currentFile?.updatedAt ? `更新于 ${formatDate(currentFile.updatedAt)}` : '文件不存在时保存会创建' }}</span>
       </div>
 
+      <TomlEditor
+        v-if="activeFile === 'config.toml'"
+        v-model="content"
+        class="file-editor"
+        placeholder="Codex config.toml"
+      />
       <ElInput
+        v-else
         v-model="content"
         type="textarea"
         resize="none"
@@ -55,6 +63,7 @@
   import { ElMessage } from 'element-plus'
   import { Check, Refresh } from '@element-plus/icons-vue'
   import { apiRequest, getErrorMessage } from '@/utils/session-manager-api'
+  import TomlEditor from '@/components/session-manager/TomlEditor.vue'
 
   type CodexFile = {
     name: string
@@ -63,7 +72,7 @@
     updatedAt?: string
   }
 
-  const activeFile = ref<'config.toml' | 'auth.json'>('config.toml')
+  const activeFile = ref<'config.toml' | 'auth.json' | 'AGENTS.md'>('config.toml')
   const currentFile = ref<CodexFile>()
   const content = ref('')
   const loading = ref(false)

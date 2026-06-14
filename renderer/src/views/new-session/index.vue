@@ -15,10 +15,10 @@
         <ElCol :xs="24" :lg="14">
           <ElForm label-position="top" class="session-form">
             <ElFormItem label="工作区路径">
-              <div class="path-row">
-                <ElInput v-model="form.workspacePath" placeholder="例如 C:\Users\jnmgp\Desktop\new-project" />
-                <ElButton @click="selectDirectory">选择文件夹</ElButton>
-              </div>
+              <ProjectPathPicker
+                v-model="form.workspacePath"
+                placeholder="例如 C:\Users\jnmgp\Desktop\new-project，或从已有会话选择"
+              />
             </ElFormItem>
             <ElFormItem>
               <ElCheckbox v-model="form.createFolder">路径不存在时自动创建文件夹</ElCheckbox>
@@ -68,6 +68,7 @@
 <script setup lang="ts">
   import { onMounted, reactive, ref } from 'vue'
   import { ElMessage } from 'element-plus'
+  import ProjectPathPicker from '@/components/session-manager/ProjectPathPicker.vue'
   import { apiRequest, getErrorMessage } from '@/utils/session-manager-api'
 
   type ProfileRecord = { id: string; name: string }
@@ -94,13 +95,6 @@
       profiles.value = data.profiles
     } catch (error) {
       ElMessage.error(getErrorMessage(error))
-    }
-  }
-
-  async function selectDirectory() {
-    const selected = await window.sessionManager?.selectDirectory?.()
-    if (selected) {
-      form.workspacePath = selected
     }
   }
 
@@ -160,13 +154,6 @@
     max-width: 760px;
   }
 
-  .path-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px;
-    width: 100%;
-  }
-
   .result-panel {
     display: grid;
     gap: 14px;
@@ -179,7 +166,7 @@
 
   @media (max-width: 768px) {
     .page-header,
-    .path-row {
+    :deep(.project-path-picker) {
       grid-template-columns: 1fr;
       align-items: stretch;
     }

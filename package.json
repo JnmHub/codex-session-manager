@@ -1,6 +1,6 @@
 {
   "name": "codex-session-manager",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A modern CLI and local web UI for managing Codex CLI sessions.",
   "type": "module",
   "main": "dist/electron/main.js",
@@ -30,7 +30,7 @@
   },
   "build": {
     "appId": "cn.jnm.codex-session-manager",
-    "productName": "会话管家",
+    "productName": "Codex会话管家",
     "copyright": "Copyright © Jnm",
     "directories": {
       "output": "release"

@@ -12,6 +12,7 @@ export type SessionMeta = {
 
 export type SessionRecord = SessionMeta & {
   note?: string;
+  category?: string;
   tags: string[];
   archived: boolean;
   favorite: boolean;
@@ -83,6 +84,19 @@ export type LlmConversation = {
   messages: LlmConversationMessage[];
 };
 
+export type SyncInstallRecord = {
+  key: string;
+  type: 'skill' | 'profile';
+  id: string;
+  name: string;
+  registryUrl: string;
+  version?: string;
+  remoteUpdatedAt?: string;
+  installedAt: string;
+  skillScope?: 'global' | 'project';
+  projectPath?: string;
+};
+
 export type StoreData = {
   version: 2;
   updatedAt: string;
@@ -91,6 +105,7 @@ export type StoreData = {
   profiles: Record<string, ProfileRecord>;
   transcriptEdits: Record<string, TranscriptMessage[]>;
   llmConversations: Record<string, LlmConversation>;
+  syncInstalls: Record<string, SyncInstallRecord>;
 };
 
 export type ListOptions = {

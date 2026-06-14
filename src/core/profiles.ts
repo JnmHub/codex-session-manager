@@ -73,11 +73,11 @@ export async function getProfileFiles(idOrName: string) {
 export async function saveProfileFiles(input: {id: string; configContent?: string; markdownContent?: string}) {
   const profile = await findProfile(input.id);
   const configPath = profile.configPath ?? profileConfigPath(profile.name);
-  const markdownPath = await resolveProfileMarkdownPath(profile.name, configPath);
 
   if (typeof input.configContent === 'string') {
     await writeCodexTextFile(configPath, input.configContent);
   }
+  const markdownPath = await resolveProfileMarkdownPath(profile.name, configPath);
   if (typeof input.markdownContent === 'string') {
     await writeCodexTextFile(markdownPath, input.markdownContent);
   }

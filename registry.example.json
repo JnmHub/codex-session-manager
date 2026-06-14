@@ -1,0 +1,47 @@
+{
+  "name": "Jnm Codex Skills Registry",
+  "version": "2026.06.14",
+  "updatedAt": "2026-06-14T00:00:00.000Z",
+  "skills": [
+    {
+      "id": "ctf-helper",
+      "name": "ctf-helper",
+      "version": "2026.06.14.1",
+      "updatedAt": "2026-06-14T00:00:00.000Z",
+      "description": "CTF challenge analysis workflow.",
+      "tags": ["ctf", "analysis"],
+      "skillUrl": "https://raw.githubusercontent.com/JnmHub/codex-session-registry/main/skills/ctf-helper/SKILL.md"
+    },
+    {
+      "id": "web-reverse",
+      "name": "web-reverse",
+      "version": "2026.06.14.1",
+      "updatedAt": "2026-06-14T00:00:00.000Z",
+      "description": "多文件 Skill 示例。files 会按 path 写入目标 skill 目录。",
+      "tags": ["web", "reverse"],
+      "files": [
+        {
+          "path": "SKILL.md",
+          "url": "https://raw.githubusercontent.com/JnmHub/codex-session-registry/main/skills/web-reverse/SKILL.md"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "url": "https://raw.githubusercontent.com/JnmHub/codex-session-registry/main/skills/web-reverse/agents/openai.yaml"
+        }
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "id": "ctf",
+      "name": "ctf",
+      "version": "2026.06.14.1",
+      "updatedAt": "2026-06-14T00:00:00.000Z",
+      "note": "CTF profile example.",
+      "commandArgs": "-p ctf",
+      "tags": ["ctf"],
+      "configUrl": "https://raw.githubusercontent.com/JnmHub/codex-session-registry/main/profiles/ctf.config.toml",
+      "markdownUrl": "https://raw.githubusercontent.com/JnmHub/codex-session-registry/main/profiles/ctf.md"
+    }
+  ]
+}

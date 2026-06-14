@@ -46,7 +46,7 @@ export async function createLlmConversation(input: Partial<Pick<LlmConversation,
       {
         id: randomUUID(),
         role: 'assistant',
-        text: '我可以在会话管家范围内帮你查找、归档、备注、绑定路径、设置 Profile/yolo、读取聊天记录和打开会话。',
+        text: '我是 Jnm 小助手，我可以在 Codex会话管家范围内帮你查找、归档、备注、绑定路径、设置 Profile/yolo、读取聊天记录和打开会话。',
         createdAt: now
       }
     ]

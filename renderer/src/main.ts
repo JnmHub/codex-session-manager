@@ -58,96 +58,105 @@ function bootstrapSessionManager() {
 
   menuStore.setMenuList([
     {
-      name: 'SessionsRoot',
-      path: '/sessions',
-      component: '/index/index',
+      path: '/sessions/list',
+      name: 'Sessions',
+      component: '/sessions/index',
       meta: {
         title: '会话管理',
-        icon: 'ri:terminal-box-line'
-      },
-      children: [
-        {
-          path: '/sessions/list',
-          name: 'Sessions',
-          component: '/sessions/index',
-          meta: {
-            title: '会话管理',
-            icon: 'ri:terminal-box-line',
-            keepAlive: false,
-            fixedTab: true
-          }
-        },
-        {
-          path: '/sessions/favorites',
-          name: 'FavoriteSessions',
-          component: '/sessions/index',
-          meta: {
-            title: '收藏会话',
-            icon: 'ri:star-line',
-            keepAlive: false
-          }
-        },
-        {
-          path: '/sessions/archived',
-          name: 'ArchivedSessions',
-          component: '/sessions/index',
-          meta: {
-            title: '归档会话',
-            icon: 'ri:archive-line',
-            keepAlive: false
-          }
-        },
-        {
-          path: '/sessions/profiles',
-          name: 'Profiles',
-          component: '/profiles/index',
-          meta: {
-            title: 'Profile 管理',
-            icon: 'ri:user-settings-line',
-            keepAlive: false
-          }
-        },
-        {
-          path: '/sessions/llm',
-          name: 'LlmTools',
-          component: '/llm/index',
-          meta: {
-            title: 'LLM 工具',
-            icon: 'ri:sparkling-line',
-            keepAlive: false
-          }
-        },
-        {
-          path: '/sessions/codex-config',
-          name: 'CodexConfig',
-          component: '/codex-config/index',
-          meta: {
-            title: 'Codex 配置',
-            icon: 'ri:file-settings-line',
-            keepAlive: false
-          }
-        },
-        {
-          path: '/sessions/settings',
-          name: 'GlobalSettings',
-          component: '/settings/index',
-          meta: {
-            title: '全局设置',
-            icon: 'ri:settings-3-line',
-            keepAlive: false
-          }
-        },
-        {
-          path: '/sessions/about',
-          name: 'About',
-          component: '/about/index',
-          meta: {
-            title: '关于系统',
-            icon: 'ri:information-line',
-            keepAlive: false
-          }
-        }
-      ]
+        icon: 'ri:terminal-box-line',
+        keepAlive: false,
+        fixedTab: false
+      }
+    },
+    {
+      path: '/sessions/profiles',
+      name: 'Profiles',
+      component: '/profiles/index',
+      meta: {
+        title: 'Profile 管理',
+        icon: 'ri:user-settings-line',
+        keepAlive: false
+      }
+    },
+    {
+      path: '/sessions/skills',
+      name: 'Skills',
+      component: '/skills/index',
+      meta: {
+        title: 'Skills 管理',
+        icon: 'ri:booklet-line',
+        keepAlive: false
+      }
+    },
+    {
+      path: '/sessions/sync',
+      name: 'SyncCenter',
+      component: '/sync/index',
+      meta: {
+        title: '同步中心',
+        icon: 'ri:download-cloud-2-line',
+        keepAlive: false
+      }
+    },
+    {
+      path: '/sessions/mcp',
+      name: 'Mcp',
+      component: '/mcp/index',
+      meta: {
+        title: 'MCP 管理',
+        icon: 'ri:server-line',
+        keepAlive: false
+      }
+    },
+    {
+      path: '/sessions/hooks',
+      name: 'Hooks',
+      component: '/hooks/index',
+      meta: {
+        title: 'Hooks 管理',
+        icon: 'ri:git-branch-line',
+        keepAlive: false
+      }
+    },
+    {
+      path: '/sessions/llm',
+      name: 'LlmTools',
+      component: '/llm/index',
+      meta: {
+        title: 'Jnm 小助手',
+        icon: 'ri:sparkling-line',
+        keepAlive: false
+      }
+    },
+    {
+      path: '/sessions/codex-config',
+      name: 'CodexConfig',
+      component: '/codex-config/index',
+      meta: {
+        title: 'Codex 配置',
+        icon: 'ri:file-settings-line',
+        keepAlive: false
+      }
+    },
+    {
+      path: '/sessions/settings',
+      name: 'GlobalSettings',
+      component: '/settings/index',
+      meta: {
+        title: '全局设置',
+        icon: 'ri:settings-3-line',
+        keepAlive: false
+      }
+    },
+    {
+      path: '/sessions/about',
+      name: 'About',
+      component: '/about/index',
+      meta: {
+        title: '关于系统',
+        icon: 'ri:information-line',
+        keepAlive: false
+      }
     }
   ] as any)
 }

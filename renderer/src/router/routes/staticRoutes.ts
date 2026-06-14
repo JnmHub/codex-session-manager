@@ -3,7 +3,7 @@ import { AppRouteRecordRaw } from '@/utils/router'
 export const staticRoutes: AppRouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/sessions'
+    redirect: '/sessions/list'
   },
   {
     path: '/sessions',
@@ -24,36 +24,6 @@ export const staticRoutes: AppRouteRecordRaw[] = [
         }
       },
       {
-        path: 'favorites',
-        name: 'FavoriteSessions',
-        component: () => import('@views/sessions/index.vue'),
-        meta: {
-          title: '收藏会话',
-          icon: 'ri:star-line',
-          keepAlive: false
-        }
-      },
-      {
-        path: 'archived',
-        name: 'ArchivedSessions',
-        component: () => import('@views/sessions/index.vue'),
-        meta: {
-          title: '归档会话',
-          icon: 'ri:archive-line',
-          keepAlive: false
-        }
-      },
-      {
-        path: 'new',
-        name: 'NewSession',
-        component: () => import('@views/new-session/index.vue'),
-        meta: {
-          title: '新建会话',
-          icon: 'ri:add-box-line',
-          keepAlive: false
-        }
-      },
-      {
         path: 'profiles',
         name: 'Profiles',
         component: () => import('@views/profiles/index.vue'),
@@ -68,7 +38,7 @@ export const staticRoutes: AppRouteRecordRaw[] = [
         name: 'LlmTools',
         component: () => import('@views/llm/index.vue'),
         meta: {
-          title: 'LLM 工具',
+          title: 'Jnm 小助手',
           icon: 'ri:sparkling-line',
           keepAlive: false
         }
@@ -80,6 +50,16 @@ export const staticRoutes: AppRouteRecordRaw[] = [
         meta: {
           title: 'Skills 管理',
           icon: 'ri:booklet-line',
+          keepAlive: false
+        }
+      },
+      {
+        path: 'sync',
+        name: 'SyncCenter',
+        component: () => import('@views/sync/index.vue'),
+        meta: {
+          title: '同步中心',
+          icon: 'ri:download-cloud-2-line',
           keepAlive: false
         }
       },

@@ -136,6 +136,27 @@
           :icon="isDark ? 'ri:sun-fill' : 'ri:moon-line'"
         />
 
+        <ElDropdown trigger="click" @command="switchQuickTheme">
+          <ArtIconButton
+            :icon="quickThemeIcon"
+            class="theme-quick-btn"
+            :aria-label="`快速切换主题，当前为${quickThemeLabel}`"
+          />
+          <template #dropdown>
+            <ElDropdownMenu>
+              <ElDropdownItem
+                v-for="item in quickThemeOptions"
+                :key="item.value"
+                :command="item.value"
+                :class="{ 'is-selected': systemThemeMode === item.value }"
+              >
+                <span class="menu-txt">{{ item.label }}</span>
+                <ArtSvgIcon v-if="systemThemeMode === item.value" icon="ri:check-fill" />
+              </ElDropdownItem>
+            </ElDropdownMenu>
+          </template>
+        </ElDropdown>
+
         <ElPopover placement="bottom-end" :width="340" trigger="click" popper-class="release-popover">
           <template #reference>
             <ElBadge :is-dot="Boolean(updateFeed?.hasUpdate)" class="header-badge">
@@ -238,7 +259,7 @@
   import { useI18n } from 'vue-i18n'
   import { useRouter } from 'vue-router'
   import { useFullscreen, useWindowSize } from '@vueuse/core'
-  import { LanguageEnum, MenuTypeEnum } from '@/enums/appEnum'
+  import { LanguageEnum, MenuTypeEnum, SystemThemeEnum } from '@/enums/appEnum'
   import { useSettingStore } from '@/store/modules/setting'
   import { useUserStore } from '@/store/modules/user'
   import { useMenuStore } from '@/store/modules/menu'
@@ -248,6 +269,7 @@
   import { themeAnimation } from '@/utils/ui/animation'
   import { useCommon } from '@/hooks/core/useCommon'
   import { useHeaderBar } from '@/hooks/core/useHeaderBar'
+  import { useTheme } from '@/hooks/core/useTheme'
   import { ElMessage } from 'element-plus'
   import {
     apiRequest,
@@ -287,7 +309,7 @@
     fastEnterMinWidth: headerBarFastEnterMinWidth
   } = useHeaderBar()
 
-  const { menuOpen, systemThemeColor, showSettingGuide, menuType, isDark, tabStyle } =
+  const { menuOpen, systemThemeColor, systemThemeMode, showSettingGuide, menuType, isDark, tabStyle } =
     storeToRefs(settingStore)
 
   const { language } = storeToRefs(userStore)
@@ -296,6 +318,17 @@
   const updateFeed = ref<UpdateFeed>()
   const announcements = ref<AnnouncementEntry[]>([])
   const announcementCount = computed(() => Math.min(announcements.value.length, 99))
+  const { switchThemeStyles } = useTheme()
+  const quickThemeOptions = [
+    { label: '亮色', value: SystemThemeEnum.LIGHT, icon: 'ri:sun-line' },
+    { label: '暗色', value: SystemThemeEnum.DARK, icon: 'ri:moon-line' },
+    { label: '跟随系统', value: SystemThemeEnum.AUTO, icon: 'ri:computer-line' }
+  ]
+  const quickTheme = computed(() => {
+    return quickThemeOptions.find((item) => item.value === systemThemeMode.value) || quickThemeOptions[0]
+  })
+  const quickThemeIcon = computed(() => quickTheme.value.icon)
+  const quickThemeLabel = computed(() => quickTheme.value.label)
   const downloadState = reactive({
     downloading: false,
     percent: 0,
@@ -385,6 +418,10 @@
    */
   const openSearchDialog = (): void => {
     mittBus.emit('openSearchDialog')
+  }
+
+  const switchQuickTheme = (theme: SystemThemeEnum): void => {
+    switchThemeStyles(theme)
   }
 
   const minimizeWindow = (): void => {
@@ -584,6 +621,15 @@
 
   .setting-btn:hover :deep(.art-svg-icon) {
     animation: rotate180 0.5s;
+  }
+
+  .theme-quick-btn:hover :deep(.art-svg-icon) {
+    color: var(--theme-color);
+  }
+
+  :global(.el-dropdown-menu__item.is-selected) {
+    color: var(--theme-color);
+    font-weight: 600;
   }
 
   .full-screen-btn:hover :deep(.art-svg-icon) {

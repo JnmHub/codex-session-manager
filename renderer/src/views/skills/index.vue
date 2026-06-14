@@ -17,8 +17,11 @@
       <div class="scope-bar">
         <ElSegmented v-model="scope" :options="scopeOptions" @change="loadSkills" />
         <div v-if="scope === 'project'" class="project-picker">
-          <ElInput v-model="projectPath" placeholder="选择包含 .codex/skills 的项目根目录" />
-          <ElButton @click="selectProject">选择</ElButton>
+          <ProjectPathPicker
+            v-model="projectPath"
+            placeholder="从已有会话选择项目路径，也可手动输入"
+            @change="loadSkills"
+          />
         </div>
       </div>
 
@@ -72,7 +75,9 @@
 
 <script setup lang="ts">
   import { onMounted, ref } from 'vue'
+  import { useRoute } from 'vue-router'
   import { ElMessage, ElMessageBox } from 'element-plus'
+  import ProjectPathPicker from '@/components/session-manager/ProjectPathPicker.vue'
   import { apiRequest, getErrorMessage } from '@/utils/session-manager-api'
 
   type SkillScope = 'global' | 'project'
@@ -85,6 +90,7 @@
     description?: string
   }
 
+  const route = useRoute()
   const scopeOptions = [
     { label: '全局', value: 'global' },
     { label: '项目级', value: 'project' }
@@ -98,15 +104,15 @@
   const selectedPath = ref('')
   const content = ref('')
 
-  onMounted(loadSkills)
-
-  async function selectProject() {
-    const selected = await window.sessionManager?.selectDirectory()
-    if (selected) {
-      projectPath.value = selected
-      await loadSkills()
+  onMounted(() => {
+    if (route.query.scope === 'project') {
+      scope.value = 'project'
     }
-  }
+    if (typeof route.query.projectPath === 'string') {
+      projectPath.value = route.query.projectPath
+    }
+    void loadSkills()
+  })
 
   async function loadSkills() {
     if (scope.value === 'project' && !projectPath.value) {

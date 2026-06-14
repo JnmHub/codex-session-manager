@@ -59,11 +59,9 @@
               {{ profileFiles?.config.exists ? '已存在' : '新文件' }}
             </ElTag>
           </div>
-          <ElInput
+          <TomlEditor
             v-model="fileForm.configContent"
-            type="textarea"
             :rows="22"
-            resize="none"
             placeholder="Profile 的 toml 配置内容"
           />
         </ElTabPane>
@@ -96,6 +94,7 @@
 <script setup lang="ts">
   import { onMounted, reactive, ref } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
+  import TomlEditor from '@/components/session-manager/TomlEditor.vue'
   import { apiRequest, getErrorMessage } from '@/utils/session-manager-api'
 
   type ProfileRecord = {

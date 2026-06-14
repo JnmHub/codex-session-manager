@@ -25,8 +25,11 @@
       <div class="scope-bar">
         <ElSegmented v-model="scope" :options="scopeOptions" @change="loadHooks" />
         <div v-if="scope === 'project'" class="project-picker">
-          <ElInput v-model="projectPath" placeholder="选择项目根目录，文件会写入 .codex/hooks.json" />
-          <ElButton @click="selectProject">选择</ElButton>
+          <ProjectPathPicker
+            v-model="projectPath"
+            placeholder="从已有会话选择项目路径，文件会写入 .codex/hooks.json"
+            @change="loadHooks"
+          />
         </div>
       </div>
 
@@ -49,6 +52,7 @@
 <script setup lang="ts">
   import { onMounted, ref } from 'vue'
   import { ElMessage } from 'element-plus'
+  import ProjectPathPicker from '@/components/session-manager/ProjectPathPicker.vue'
   import { apiRequest, getErrorMessage } from '@/utils/session-manager-api'
 
   type HookScope = 'global' | 'project'
@@ -65,14 +69,6 @@
   const content = ref('')
 
   onMounted(loadHooks)
-
-  async function selectProject() {
-    const selected = await window.sessionManager?.selectDirectory()
-    if (selected) {
-      projectPath.value = selected
-      await loadHooks()
-    }
-  }
 
   async function loadHooks() {
     if (scope.value === 'project' && !projectPath.value) {

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {getCodexHome} from './paths.js';
 
-type CodexFileName = 'config.toml' | 'auth.json';
+type CodexFileName = 'config.toml' | 'auth.json' | 'AGENTS.md';
 
 export async function getCodexFile(name: string) {
   const fileName = normalizeCodexFileName(name);
@@ -27,7 +27,7 @@ export async function saveCodexFile(name: string, content: string) {
 }
 
 function normalizeCodexFileName(name: string): CodexFileName {
-  if (name === 'config.toml' || name === 'auth.json') {
+  if (name === 'config.toml' || name === 'auth.json' || name === 'AGENTS.md') {
     return name;
   }
   throw new Error('Unsupported Codex file');

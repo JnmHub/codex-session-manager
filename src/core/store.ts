@@ -44,6 +44,7 @@ export function mergeSession(existing: SessionRecord | undefined, meta: SessionM
   return {
     ...meta,
     note: existing?.note,
+    category: existing?.category,
     tags: existing?.tags ?? [],
     archived: existing?.archived ?? false,
     favorite: existing?.favorite ?? false,
@@ -69,12 +70,19 @@ export function normalizeStore(parsed: Partial<StoreData>): StoreData {
     },
     profiles: parsed.profiles ?? {},
     transcriptEdits: parsed.transcriptEdits ?? {},
+    syncInstalls: parsed.syncInstalls ?? {},
     llmConversations: Object.fromEntries(
       Object.entries(parsed.llmConversations ?? {}).map(([id, conversation]) => [
         id,
         {
           ...conversation,
-          permissionLevel: conversation.permissionLevel === 'dangerous' ? 'dangerous' : 'normal'
+          permissionLevel: conversation.permissionLevel === 'dangerous' ? 'dangerous' : 'normal',
+          messages: (conversation.messages ?? []).map(message => ({
+            ...message,
+            text: message.text === '我可以在会话管家范围内帮你查找、归档、备注、绑定路径、设置 Profile/yolo、读取聊天记录和打开会话。'
+              ? '我是 Jnm 小助手，我可以在 Codex会话管家范围内帮你查找、归档、备注、绑定路径、设置 Profile/yolo、读取聊天记录和打开会话。'
+              : message.text
+          }))
         }
       ])
     )

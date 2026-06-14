@@ -44,15 +44,15 @@
         <template #header>
           <div class="chat-header">
             <div class="chat-title-block">
-              <h3>{{ activeConversation?.title || 'LLM 助手' }}</h3>
-              <span>最大上下文 {{ activeConversation?.maxContext || 12 }} 条</span>
+              <h3>{{ activeConversation?.title || 'Jnm 小助手' }}</h3>
+              <span>我是 Jnm 小助手，最大上下文 {{ activeConversation?.maxContext || 12 }} 条</span>
             </div>
             <div class="chat-actions">
               <ElSegmented
                 v-model="metaForm.permissionLevel"
                 :options="permissionOptions"
                 class="permission-segment"
-                @change="saveCurrentMeta"
+                @change="changePermission"
               />
               <ElSelect
                 v-model="metaForm.category"
@@ -74,7 +74,7 @@
                 class="context-number"
                 @change="saveCurrentMeta"
               />
-              <ElButton @click="togglePin" v-ripple>
+              <ElButton @click="togglePin()" v-ripple>
                 <template #icon><Top /></template>
                 {{ activeConversation?.pinned ? '取消置顶' : '置顶' }}
               </ElButton>
@@ -217,7 +217,7 @@
       :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
       @click.stop
     >
-      <button @click="togglePin(contextMenu.target)">切换置顶</button>
+      <button @click.stop="togglePin(contextMenu.target)">切换置顶</button>
       <button class="danger" @click="deleteConversation(contextMenu.target)">删除会话</button>
     </div>
   </div>
@@ -286,8 +286,8 @@
     'resetTranscriptEdits'
   ]
   const permissionOptions = [
-    { label: '正常', value: 'normal' },
-    { label: '危险', value: 'dangerous' }
+    { label: '只读', value: 'normal' },
+    { label: '读写', value: 'dangerous' }
   ]
 
   const activeMessages = computed(() => activeConversation.value?.messages || [])
@@ -347,6 +347,26 @@
     })
     activeConversation.value = data.conversation
     await loadConversationListOnly()
+  }
+
+  async function changePermission(value: string | number | boolean) {
+    if (value === 'dangerous') {
+      const confirmed = await ElMessageBox.confirm(
+        '读写权限允许 Jnm 小助手在本工具范围内执行写入操作，例如归档、备注、绑定路径、保存配置、保存聊天记录编辑副本和打开/重开会话。确认开启？',
+        '开启读写权限',
+        {
+          type: 'warning',
+          confirmButtonText: '开启读写',
+          cancelButtonText: '保持只读',
+          confirmButtonClass: 'el-button--danger'
+        }
+      ).then(() => true).catch(() => false)
+      if (!confirmed) {
+        metaForm.permissionLevel = activeConversation.value?.permissionLevel || 'normal'
+        return
+      }
+    }
+    await saveCurrentMeta()
   }
 
   async function togglePin(target = activeConversation.value) {

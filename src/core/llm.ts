@@ -10,6 +10,7 @@ import {
   listProjects,
   listSessions,
   setBoundPath,
+  setCategory,
   setNote,
   setSessionLaunchOptions,
   toggleArchived,
@@ -48,6 +49,7 @@ const dangerousTools = new Set([
   'closeSessionWindow',
   'reopenSessionWindow',
   'setNote',
+  'setCategory',
   'bindPath',
   'setSessionOptions',
   'toggleFavorite',
@@ -233,11 +235,11 @@ async function buildChatPrompt(messages: LlmChatMessage[], permissionLevel: LlmP
   ]);
 
   const context = {
-    product: '会话管家',
+    product: 'Codex会话管家',
     permissionLevel,
     limits: permissionLevel === 'dangerous'
-      ? '危险权限：可以调用本工具暴露的任意读写动作，包括保存配置、编辑聊天记录副本、关闭/重开会话窗口。仍然不能执行任意 shell、访问任意 URL 或修改 Codex 原始 jsonl。'
-      : '正常权限：只能读取、查询和生成 dry-run 命令。不能写入配置、修改记录、真实打开会话、关闭窗口或重开窗口。',
+      ? '读写权限：可以调用本工具暴露的读写动作，包括保存配置、编辑聊天记录副本、关闭/重开会话窗口。仍然不能执行任意 shell、访问任意 URL 或修改 Codex 原始 jsonl。'
+      : '只读权限：只能读取、查询和生成 dry-run 命令。不能写入配置、修改记录、真实打开会话、关闭窗口或重开窗口。',
     settings: {
       globalProfile: settings.globalProfile,
       yoloDefault: settings.yoloDefault,
@@ -261,9 +263,9 @@ async function buildChatPrompt(messages: LlmChatMessage[], permissionLevel: LlmP
   };
 
   return [
-    '你是“会话管家”的内置助手。你要用中文回答，帮助用户管理 Codex CLI 历史会话。',
+    '你是“Codex会话管家”的内置助手，名字叫“Jnm 小助手”。你要用中文回答，帮助用户管理 Codex CLI 历史会话。',
     '你具有上下文记忆：下面会给出最近聊天记录、本工具状态和可调用动作。',
-    `当前权限等级：${permissionLevel === 'dangerous' ? '危险' : '正常'}。`,
+    `当前权限等级：${permissionLevel === 'dangerous' ? '读写' : '只读'}。`,
     '权限边界：你只能建议或调用下列白名单动作。不要声称能访问本工具之外的文件、网络、系统命令或 Codex 内部未暴露能力。',
     '当需要执行动作时，只输出严格 JSON，不要 Markdown，不要代码块。reply 字段必须是给用户看的自然中文，不要把 JSON 当成用户可读内容解释。',
     '输出格式：{"reply":"给用户看的中文回复","actions":[{"tool":"工具名","args":{}}]}。',
@@ -274,9 +276,10 @@ async function buildChatPrompt(messages: LlmChatMessage[], permissionLevel: LlmP
     '- listSessions {query?, status?, limit?}：查询会话。status 可为 all, active, archived, favorite, missing。',
     '- openSession {id, dryRun?, profile?, yolo?}：打开会话；dryRun=true 只返回命令。',
     '- getSessionWindow {id}：检查某个会话窗口是否已打开。',
-    '- closeSessionWindow {id}：关闭某个会话对应的 PowerShell 窗口。危险权限。',
-    '- reopenSessionWindow {id, profile?, yolo?}：关闭并重开某个会话窗口。危险权限。',
+    '- closeSessionWindow {id}：关闭某个会话对应的 PowerShell 窗口。读写权限。',
+    '- reopenSessionWindow {id, profile?, yolo?}：关闭并重开某个会话窗口。读写权限。',
     '- setNote {id, note}：设置会话备注。',
+    '- setCategory {id, category}：设置会话分类。',
     '- bindPath {id, path}：重新绑定会话工作目录。',
     '- setSessionOptions {id, profile?, yolo?}：设置单会话 Profile/yolo。',
     '- toggleFavorite {id}：切换收藏。',
@@ -287,8 +290,8 @@ async function buildChatPrompt(messages: LlmChatMessage[], permissionLevel: LlmP
     '- deleteProfile {id}：删除本工具创建的 Profile 记录。',
     '- updateSettings {globalProfile?, yoloDefault?}：更新全局 Profile/yolo 默认值。',
     '- getTranscript {id}：读取某个会话可解析的聊天记录。',
-    '- saveTranscriptEdits {id, messages}：保存某个会话的聊天记录编辑副本。危险权限，只修改本工具副本。',
-    '- resetTranscriptEdits {id}：删除某个会话的聊天记录编辑副本并回到原始记录。危险权限。',
+    '- saveTranscriptEdits {id, messages}：保存某个会话的聊天记录编辑副本。读写权限，只修改本工具副本。',
+    '- resetTranscriptEdits {id}：删除某个会话的聊天记录编辑副本并回到原始记录。读写权限。',
     '- getProfileFiles {id}：读取 Profile 对应的 config toml 和 Markdown。',
     '- saveProfileFiles {id, configContent?, markdownContent?}：保存 Profile 对应的 config toml 和 Markdown。',
     '- getCodexFile {name}：读取 Codex 主配置文件。name 只能是 config.toml 或 auth.json。',
@@ -310,6 +313,7 @@ function compactSession(session: SessionRecord) {
     shortId: session.id.slice(0, 8),
     summary: session.summary,
     note: session.note,
+    category: session.category,
     cwd: session.cwd,
     boundPath: session.boundPath,
     archived: session.archived,
@@ -390,7 +394,7 @@ async function executeToolAction(action: LlmAction, permissionLevel: LlmPermissi
       if (action.tool === 'openSession' && booleanArg(args.dryRun) === true) {
         // Dry-run only returns a command string and does not launch a shell.
       } else {
-        return fail(action.tool, `当前为正常权限，已拒绝危险动作：${action.tool}`);
+        return fail(action.tool, `当前为只读权限，已拒绝读写动作：${action.tool}`);
       }
     }
 
@@ -416,6 +420,10 @@ async function executeToolAction(action: LlmAction, permissionLevel: LlmPermissi
           yolo: booleanArg(args.yolo)
         });
         return ok(action.tool, booleanArg(args.dryRun) ? '已生成打开命令。' : '已发送打开会话请求。', {command});
+      }
+      case 'setCategory': {
+        const session = await setCategory(requiredString(args.id, 'id'), stringArg(args.category) ?? '');
+        return ok(action.tool, session.category ? `已设置分类为 ${session.category}。` : '已清空会话分类。', compactSession(session));
       }
       case 'getSessionWindow': {
         const status = await getSessionWindowStatus(requiredString(args.id, 'id'));

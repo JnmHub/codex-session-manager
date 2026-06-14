@@ -1,6 +1,8 @@
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
 import {loadStore, saveStore} from './store.js';
+import {getSessionsDir} from './paths.js';
 import type {ListOptions, SessionRecord} from '../types.js';
 
 export async function listSessions(options: ListOptions = {}) {
@@ -18,6 +20,7 @@ export async function listSessions(options: ListOptions = {}) {
         session.id,
         session.cwd,
         session.boundPath,
+        session.category,
         session.note,
         session.summary,
         ...session.tags
@@ -63,6 +66,15 @@ export async function setNote(idOrPrefix: string, note: string) {
   return store.sessions[session.id];
 }
 
+export async function setCategory(idOrPrefix: string, category: string) {
+  const store = await loadStore();
+  const session = await getSession(idOrPrefix);
+  const normalized = category.trim();
+  store.sessions[session.id] = {...session, category: normalized || undefined};
+  await saveStore(store);
+  return store.sessions[session.id];
+}
+
 export async function setBoundPath(idOrPrefix: string, boundPath: string) {
   const resolved = path.resolve(boundPath);
   const store = await loadStore();
@@ -95,12 +107,51 @@ export async function toggleFavorite(idOrPrefix: string) {
   return store.sessions[session.id];
 }
 
+export async function setFavorite(idOrPrefix: string, favorite: boolean) {
+  const store = await loadStore();
+  const session = await getSession(idOrPrefix);
+  store.sessions[session.id] = {...session, favorite};
+  await saveStore(store);
+  return store.sessions[session.id];
+}
+
 export async function toggleArchived(idOrPrefix: string) {
   const store = await loadStore();
   const session = await getSession(idOrPrefix);
   store.sessions[session.id] = {...session, archived: !session.archived};
   await saveStore(store);
   return store.sessions[session.id];
+}
+
+export async function setArchived(idOrPrefix: string, archived: boolean) {
+  const store = await loadStore();
+  const session = await getSession(idOrPrefix);
+  store.sessions[session.id] = {...session, archived};
+  await saveStore(store);
+  return store.sessions[session.id];
+}
+
+export async function deleteSession(idOrPrefix: string, options: {deleteFile?: boolean} = {}) {
+  const store = await loadStore();
+  const session = await getSession(idOrPrefix);
+  let deletedFile = false;
+
+  if (options.deleteFile) {
+    const filePath = assertSessionHistoryPath(session.filePath);
+    try {
+      await fsp.unlink(filePath);
+      deletedFile = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
+    }
+  }
+
+  delete store.sessions[session.id];
+  delete store.transcriptEdits[session.id];
+  await saveStore(store);
+  return {session, deletedFile};
 }
 
 export async function listProjects() {
@@ -136,4 +187,14 @@ export function projectName(session: SessionRecord) {
 
 export function formatShortId(id: string) {
   return id.slice(0, 8);
+}
+
+function assertSessionHistoryPath(filePath: string) {
+  const root = path.resolve(getSessionsDir());
+  const resolved = path.resolve(filePath);
+  const relative = path.relative(root, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative) || !resolved.endsWith('.jsonl')) {
+    throw new Error('Refusing to delete a file outside Codex sessions directory');
+  }
+  return resolved;
 }

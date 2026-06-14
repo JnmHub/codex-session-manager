@@ -29,7 +29,7 @@ const FEED_TIMEOUT_MS = 4500;
 
 export async function getAppInfo() {
   return {
-    name: '会话管家',
+    name: 'Codex会话管家',
     version: APP_VERSION,
     author: 'Jnm',
     copyright: 'Jnm Copyright',

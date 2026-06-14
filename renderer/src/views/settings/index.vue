@@ -12,6 +12,44 @@
       </template>
 
       <ElForm label-position="top" class="settings-form">
+        <section class="settings-block">
+          <div class="block-title">
+            <h3>外观主题</h3>
+            <p>切换应用的亮色、暗色和主色风格，设置会立即生效。</p>
+          </div>
+          <ElRow :gutter="18">
+            <ElCol :xs="24" :md="12">
+              <ElFormItem label="主题模式">
+                <ElSegmented
+                  v-model="systemThemeMode"
+                  :options="themeOptions"
+                  @change="changeTheme"
+                />
+              </ElFormItem>
+            </ElCol>
+            <ElCol :xs="24" :md="12">
+              <ElFormItem label="主题主色">
+                <div class="theme-color-list">
+                  <button
+                    v-for="color in AppConfig.systemMainColor"
+                    :key="color"
+                    class="theme-color-item"
+                    :class="{ active: color === systemThemeColor }"
+                    :style="{ backgroundColor: color }"
+                    type="button"
+                    :aria-label="`切换主题色 ${color}`"
+                    @click="changeThemeColor(color)"
+                  >
+                    <ElIcon v-if="color === systemThemeColor"><Check /></ElIcon>
+                  </button>
+                </div>
+              </ElFormItem>
+            </ElCol>
+          </ElRow>
+        </section>
+
+        <ElDivider />
+
         <ElRow :gutter="18">
           <ElCol :xs="24" :md="12">
             <ElFormItem label="全局 Profile">
@@ -92,14 +130,28 @@
 
 <script setup lang="ts">
   import { onMounted, reactive, ref } from 'vue'
+  import { storeToRefs } from 'pinia'
+  import { Check } from '@element-plus/icons-vue'
   import { ElMessage } from 'element-plus'
+  import AppConfig from '@/config'
+  import { SystemThemeEnum } from '@/enums/appEnum'
+  import { useTheme } from '@/hooks/core/useTheme'
+  import { useSettingStore } from '@/store/modules/setting'
   import { apiRequest, getErrorMessage } from '@/utils/session-manager-api'
 
   type ProfileRecord = { id: string; name: string; note?: string }
 
+  const settingStore = useSettingStore()
+  const { systemThemeMode, systemThemeColor } = storeToRefs(settingStore)
+  const { switchThemeStyles } = useTheme()
   const loading = ref(false)
   const profiles = ref<ProfileRecord[]>([])
   const codex = ref<any>()
+  const themeOptions = [
+    { label: '亮色', value: SystemThemeEnum.LIGHT },
+    { label: '暗色', value: SystemThemeEnum.DARK },
+    { label: '跟随系统', value: SystemThemeEnum.AUTO }
+  ]
   const form = reactive({
     globalProfile: '',
     yoloDefault: true,
@@ -115,6 +167,14 @@
   })
 
   onMounted(loadData)
+
+  function changeTheme(value: string | number | boolean) {
+    switchThemeStyles(value as SystemThemeEnum)
+  }
+
+  function changeThemeColor(color: string) {
+    settingStore.setElementTheme(color)
+  }
 
   async function loadData() {
     loading.value = true
@@ -180,5 +240,60 @@
 
   .settings-form {
     max-width: 980px;
+  }
+
+  .settings-block {
+    display: grid;
+    gap: 14px;
+  }
+
+  .block-title {
+    h3 {
+      margin: 0;
+      color: var(--art-gray-900);
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 24px;
+    }
+
+    p {
+      margin: 4px 0 0;
+      color: var(--art-gray-500);
+      font-size: 13px;
+      line-height: 20px;
+    }
+  }
+
+  .theme-color-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    min-height: 32px;
+  }
+
+  .theme-color-item {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid transparent;
+    border-radius: 50%;
+    color: #fff;
+    cursor: pointer;
+    outline: none;
+    box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+
+    &:focus-visible {
+      border-color: var(--art-gray-900);
+    }
+
+    &.active {
+      border-color: var(--art-main-bg-color);
+      box-shadow:
+        0 0 0 2px var(--theme-color),
+        0 4px 12px rgb(0 0 0 / 12%);
+    }
   }
 </style>

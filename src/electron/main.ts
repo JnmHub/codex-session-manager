@@ -9,7 +9,7 @@ let mainWindow: BrowserWindow | undefined;
 let webServer: http.Server | undefined;
 let webUrl: string | undefined;
 
-app.setName('会话管家');
+app.setName('Codex会话管家');
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
@@ -33,7 +33,7 @@ async function createWindow() {
   if (!webUrl) {
     const started = await startWebServer({
       host: '127.0.0.1',
-      port: 0,
+      port: 8765,
       open: false,
       scan: true
     });
@@ -46,7 +46,7 @@ async function createWindow() {
     height: 860,
     minWidth: 980,
     minHeight: 680,
-    title: '会话管家',
+    title: 'Codex会话管家',
     backgroundColor: '#f8fafc',
     autoHideMenuBar: true,
     frame: false,
