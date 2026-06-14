@@ -66,7 +66,7 @@
       ]
     },
     "nsis": {
-      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}",
+      "artifactName": "codex-session-manager-Setup-${version}-${arch}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
@@ -74,7 +74,7 @@
       "createStartMenuShortcut": true
     },
     "portable": {
-      "artifactName": "${productName}-Portable-${version}-${arch}.${ext}"
+      "artifactName": "codex-session-manager-Portable-${version}-${arch}.${ext}"
     },
     "publish": [
       {
