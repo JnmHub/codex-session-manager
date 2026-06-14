@@ -6,6 +6,19 @@ import {fileURLToPath} from 'node:url';
 import {scanSessions} from '../core/scanner.js';
 import {getCodexFile, saveCodexFile} from '../core/codexFiles.js';
 import {
+  deleteMcpServer,
+  deleteSkill,
+  getHooksFile,
+  getSkill,
+  listMcpServers,
+  listSkills,
+  saveHooksFile,
+  saveMcpServer,
+  saveSkill,
+  type HookScope,
+  type SkillScope
+} from '../core/codexExtensions.js';
+import {
   getSession,
   listProjects,
   listSessions,
@@ -18,6 +31,7 @@ import {
 import {launchSessionWithDefaults} from '../core/launcher.js';
 import {getSettings, updateSettings} from '../core/settings.js';
 import {deleteProfile, getProfileFiles, listProfiles, saveProfileFiles, upsertProfile} from '../core/profiles.js';
+import {createWorkspaceAndOpenSession} from '../core/newSession.js';
 import {getTranscript, resetTranscriptEdits, saveTranscriptEdits} from '../core/transcript.js';
 import {
   createLlmConversation,
@@ -258,6 +272,74 @@ async function routeApi(
     'POST /api/scan': async () => {
       const sessions = await scanSessions();
       return {count: sessions.length};
+    },
+    'POST /api/new-session': async () => {
+      const payload = requireObject(body);
+      return createWorkspaceAndOpenSession({
+        workspacePath: requireString(payload.workspacePath, 'workspacePath'),
+        createFolder: payload.createFolder !== false,
+        profile: optionalString(payload.profile),
+        yolo: typeof payload.yolo === 'boolean' ? payload.yolo : undefined,
+        prompt: optionalStringAllowEmpty(payload.prompt)
+      });
+    },
+    'GET /api/skills': async () => {
+      return {
+        skills: await listSkills({
+          scope: optionalSkillScope(requestUrl.searchParams.get('scope')),
+          projectPath: optionalString(requestUrl.searchParams.get('projectPath'))
+        })
+      };
+    },
+    'GET /api/skill': async () => {
+      return getSkill({
+        scope: requireSkillScope(requestUrl.searchParams.get('scope')),
+        name: requireString(requestUrl.searchParams.get('name'), 'name'),
+        projectPath: optionalString(requestUrl.searchParams.get('projectPath'))
+      });
+    },
+    'POST /api/skill': async () => {
+      const payload = requireObject(body);
+      return saveSkill({
+        scope: requireSkillScope(payload.scope),
+        name: requireString(payload.name, 'name'),
+        content: optionalStringAllowEmpty(payload.content) ?? '',
+        projectPath: optionalString(payload.projectPath)
+      });
+    },
+    'DELETE /api/skill': async () => {
+      const payload = requireObject(body);
+      return deleteSkill({
+        scope: requireSkillScope(payload.scope),
+        name: requireString(payload.name, 'name'),
+        projectPath: optionalString(payload.projectPath)
+      });
+    },
+    'GET /api/mcp': async () => listMcpServers(),
+    'POST /api/mcp': async () => {
+      const payload = requireObject(body);
+      return saveMcpServer({
+        name: requireString(payload.name, 'name'),
+        body: optionalStringAllowEmpty(payload.body) ?? ''
+      });
+    },
+    'DELETE /api/mcp': async () => {
+      const payload = requireObject(body);
+      return deleteMcpServer(requireString(payload.name, 'name'));
+    },
+    'GET /api/hooks': async () => {
+      return getHooksFile({
+        scope: requireHookScope(requestUrl.searchParams.get('scope')),
+        projectPath: optionalString(requestUrl.searchParams.get('projectPath'))
+      });
+    },
+    'POST /api/hooks': async () => {
+      const payload = requireObject(body);
+      return saveHooksFile({
+        scope: requireHookScope(payload.scope),
+        content: optionalStringAllowEmpty(payload.content) ?? '',
+        projectPath: optionalString(payload.projectPath)
+      });
     },
     'POST /api/open': async () => {
       const payload = requireObject(body);
@@ -520,6 +602,24 @@ function optionalString(value: unknown) {
 
 function optionalStringAllowEmpty(value: unknown) {
   return typeof value === 'string' ? value : undefined;
+}
+
+function requireSkillScope(value: unknown): SkillScope {
+  if (value === 'global' || value === 'project') {
+    return value;
+  }
+  throw new Error('Missing required field: scope');
+}
+
+function optionalSkillScope(value: unknown): SkillScope | undefined {
+  return value === 'global' || value === 'project' ? value : undefined;
+}
+
+function requireHookScope(value: unknown): HookScope {
+  if (value === 'global' || value === 'project') {
+    return value;
+  }
+  throw new Error('Missing required field: scope');
 }
 
 function optionalPermission(value: unknown): LlmPermissionLevel | undefined {

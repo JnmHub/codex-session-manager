@@ -44,6 +44,16 @@ export const staticRoutes: AppRouteRecordRaw[] = [
         }
       },
       {
+        path: 'new',
+        name: 'NewSession',
+        component: () => import('@views/new-session/index.vue'),
+        meta: {
+          title: '新建会话',
+          icon: 'ri:add-box-line',
+          keepAlive: false
+        }
+      },
+      {
         path: 'profiles',
         name: 'Profiles',
         component: () => import('@views/profiles/index.vue'),
@@ -60,6 +70,36 @@ export const staticRoutes: AppRouteRecordRaw[] = [
         meta: {
           title: 'LLM 工具',
           icon: 'ri:sparkling-line',
+          keepAlive: false
+        }
+      },
+      {
+        path: 'skills',
+        name: 'Skills',
+        component: () => import('@views/skills/index.vue'),
+        meta: {
+          title: 'Skills 管理',
+          icon: 'ri:booklet-line',
+          keepAlive: false
+        }
+      },
+      {
+        path: 'mcp',
+        name: 'Mcp',
+        component: () => import('@views/mcp/index.vue'),
+        meta: {
+          title: 'MCP 管理',
+          icon: 'ri:server-line',
+          keepAlive: false
+        }
+      },
+      {
+        path: 'hooks',
+        name: 'Hooks',
+        component: () => import('@views/hooks/index.vue'),
+        meta: {
+          title: 'Hooks 管理',
+          icon: 'ri:git-branch-line',
           keepAlive: false
         }
       },
