@@ -1,4 +1,5 @@
 import path from 'node:path';
+import AdmZip from 'adm-zip';
 import {listSkills, saveSkill, saveSkillFiles, type SkillScope} from './codexExtensions.js';
 import {listProfiles, saveProfileFiles, upsertProfile} from './profiles.js';
 import {loadStore, saveStore} from './store.js';
@@ -6,6 +7,9 @@ import {loadStore, saveStore} from './store.js';
 export const defaultRegistryUrl =
   process.env.CXM_REGISTRY_URL ??
   'https://raw.githubusercontent.com/JnmHub/codex-session-registry/main/registry.json';
+const skillFileDownloadConcurrency = 5;
+const maxFetchAttempts = 4;
+const retryableFetchStatuses = new Set([408, 429, 500, 502, 503, 504]);
 
 export type SyncItemRef = {
   type: 'skill' | 'profile';
@@ -20,6 +24,7 @@ type RegistrySkill = {
   description?: string;
   content?: string;
   skillUrl?: string;
+  archiveUrl?: string;
   files?: Array<{
     path: string;
     content?: string;
@@ -160,11 +165,16 @@ export async function installSyncItems(input: {
     if (!installAll && !itemKeys.has(`skill:${skill.id}`)) {
       continue;
     }
-    if (skill.files?.length) {
-      const files = await Promise.all(skill.files.map(async file => ({
-        path: file.path,
-        content: file.content ?? await fetchTextRequired(file.url, `Skill ${skill.name}/${file.path}`)
-      })));
+    if (skill.archiveUrl) {
+      const files = await downloadSkillArchive(skill);
+      await saveSkillFiles({
+        scope: input.skillScope,
+        projectPath: input.projectPath,
+        name: skill.name,
+        files
+      });
+    } else if (skill.files?.length) {
+      const files = await downloadSkillFiles(skill);
       await saveSkillFiles({
         scope: input.skillScope,
         projectPath: input.projectPath,
@@ -275,6 +285,54 @@ function getLocalStatus(input: {
   };
 }
 
+async function downloadSkillFiles(skill: RegistrySkill) {
+  return mapWithConcurrency(skill.files ?? [], skillFileDownloadConcurrency, async file => ({
+    path: file.path,
+    content: file.content ?? await fetchTextRequired(file.url, `Skill ${skill.name}/${file.path}`)
+  }));
+}
+
+async function downloadSkillArchive(skill: RegistrySkill) {
+  const buffer = await fetchBufferRequired(skill.archiveUrl, `Skill ${skill.name} archive`);
+  const zip = new AdmZip(Buffer.from(buffer));
+  const entries = zip.getEntries()
+    .filter(entry => !entry.isDirectory)
+    .filter(entry => !isIgnoredArchiveEntry(entry.entryName));
+  const prefix = commonArchivePrefix(entries.map(entry => normalizeArchivePath(entry.entryName)), skill.name);
+
+  return entries.map(entry => {
+    const relativePath = stripArchivePrefix(normalizeArchivePath(entry.entryName), prefix);
+    if (!relativePath || relativePath.includes('\0') || relativePath.startsWith('/') || relativePath.includes('../')) {
+      throw new Error(`Skill ${skill.name} archive contains invalid path: ${entry.entryName}`);
+    }
+    return {
+      path: relativePath,
+      content: entry.getData().toString('utf8')
+    };
+  });
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>
+) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, limit), items.length);
+  await Promise.all(Array.from({length: workerCount}, async () => {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) {
+        return;
+      }
+      results[index] = await worker(items[index], index);
+    }
+  }));
+  return results;
+}
+
 async function recordSyncInstall(input: {
   registryUrl: string;
   type: 'skill' | 'profile';
@@ -331,7 +389,11 @@ async function fetchTextRequired(url: string | undefined, label: string) {
   if (!url) {
     throw new Error(`${label} missing content or URL`);
   }
-  return fetchTextOptional(url) as Promise<string>;
+  try {
+    return await fetchTextOptional(url) as string;
+  } catch (error) {
+    throw new Error(`${label} fetch failed: ${getErrorMessage(error)}`);
+  }
 }
 
 async function fetchTextOptional(url: string | undefined) {
@@ -342,14 +404,83 @@ async function fetchTextOptional(url: string | undefined) {
   return response.text();
 }
 
-async function fetchUrl(url: string) {
+async function fetchBufferRequired(url: string | undefined, label: string) {
+  if (!url) {
+    throw new Error(`${label} missing URL`);
+  }
+  try {
+    const response = await fetchUrl(url);
+    return await response.arrayBuffer();
+  } catch (error) {
+    throw new Error(`${label} fetch failed: ${getErrorMessage(error)}`);
+  }
+}
+
+async function fetchUrl(url: string, attempt = 1): Promise<Response> {
   const parsed = new URL(url);
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
     throw new Error('Only http/https registry URLs are supported');
   }
-  const response = await fetch(parsed);
-  if (!response.ok) {
+
+  try {
+    const response = await fetch(parsed);
+    if (response.ok) {
+      return response;
+    }
+    if (attempt < maxFetchAttempts && retryableFetchStatuses.has(response.status)) {
+      await wait(fetchRetryDelay(attempt));
+      return fetchUrl(url, attempt + 1);
+    }
     throw new Error(`Fetch failed ${response.status}: ${url}`);
+  } catch (error) {
+    if (attempt < maxFetchAttempts && isRetryableFetchError(error)) {
+      await wait(fetchRetryDelay(attempt));
+      return fetchUrl(url, attempt + 1);
+    }
+    throw error;
   }
-  return response;
+}
+
+function isRetryableFetchError(error: unknown) {
+  return !(error instanceof Error) || !error.message.startsWith('Fetch failed ');
+}
+
+function fetchRetryDelay(attempt: number) {
+  const base = 450 * 2 ** (attempt - 1);
+  const jitter = Math.floor(Math.random() * 120);
+  return base + jitter;
+}
+
+function wait(ms: number) {
+  return new Promise(resolve => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function normalizeArchivePath(value: string) {
+  return value.replace(/\\/g, '/').replace(/^\/+/, '');
+}
+
+function isIgnoredArchiveEntry(value: string) {
+  const normalized = normalizeArchivePath(value);
+  return normalized.startsWith('__MACOSX/') || normalized.endsWith('/.DS_Store') || normalized.includes('/.git/');
+}
+
+function commonArchivePrefix(paths: string[], skillName: string) {
+  const firstSegments = paths
+    .map(item => item.split('/')[0])
+    .filter(Boolean);
+  const unique = new Set(firstSegments);
+  if (unique.size === 1 && unique.has(skillName)) {
+    return `${skillName}/`;
+  }
+  return '';
+}
+
+function stripArchivePrefix(value: string, prefix: string) {
+  return prefix && value.startsWith(prefix) ? value.slice(prefix.length) : value;
 }

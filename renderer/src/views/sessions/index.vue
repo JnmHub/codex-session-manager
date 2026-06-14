@@ -109,6 +109,45 @@
         </template>
       </ArtTableHeader>
 
+      <div class="quick-filter-bar">
+        <ElInput
+          v-model="filterForm.keyword"
+          clearable
+          placeholder="搜索会话 ID、项目、备注、摘要"
+          class="quick-filter-keyword"
+          @input="applySearch"
+          @clear="applySearch"
+        />
+        <ElSelect
+          v-model="filterForm.category"
+          filterable
+          clearable
+          placeholder="全部分类"
+          class="quick-filter-select"
+          @change="applySearch"
+          @clear="applySearch"
+        >
+          <ElOption v-for="category in sessionCategories" :key="category" :label="category" :value="category" />
+        </ElSelect>
+        <ElSelect
+          v-model="filterForm.project"
+          filterable
+          clearable
+          placeholder="全部项目"
+          class="quick-filter-project"
+          @change="applySearch"
+          @clear="applySearch"
+        >
+          <ElOption
+            v-for="project in projects"
+            :key="project.path"
+            :label="`${projectLabel(project.path)} (${project.count})`"
+            :value="project.path"
+          />
+        </ElSelect>
+        <ElButton @click="resetSearch" v-ripple>重置筛选</ElButton>
+      </div>
+
       <ElTable
         v-loading="loading"
         row-key="id"
@@ -1264,6 +1303,23 @@
     margin-left: 6px;
   }
 
+  .quick-filter-bar {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.4fr) minmax(150px, 0.7fr) minmax(220px, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--art-card-border);
+    border-radius: 8px;
+    background: var(--art-main-bg-color);
+  }
+
+  .quick-filter-keyword,
+  .quick-filter-select,
+  .quick-filter-project {
+    width: 100%;
+  }
+
   .session-cell,
   .project-cell {
     min-width: 0;
@@ -1497,6 +1553,16 @@
 
     .overview-main h2 {
       font-size: 20px;
+    }
+
+    .quick-filter-bar {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (width > 768px) and (width <= 1100px) {
+    .quick-filter-bar {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 </style>

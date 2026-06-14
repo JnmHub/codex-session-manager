@@ -1,6 +1,6 @@
 {
   "name": "codex-session-manager",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A modern CLI and local web UI for managing Codex CLI sessions.",
   "type": "module",
   "main": "dist/electron/main.js",
@@ -94,11 +94,13 @@
     "node": ">=20"
   },
   "dependencies": {
+    "adm-zip": "^0.5.17",
     "commander": "^14.0.2",
     "ink": "^6.5.1",
     "react": "^19.2.1"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "electron": "^42.4.0",
