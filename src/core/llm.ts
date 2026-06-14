@@ -1,23 +1,41 @@
 import {randomUUID} from 'node:crypto';
+import {deleteMcpServer, deleteSkill, getHooksFile, getSkill, listMcpServers, listSkills, saveHooksFile, saveMcpServer, saveSkill} from './codexExtensions.js';
 import {launchSessionWithDefaults} from './launcher.js';
 import {getCodexFile, saveCodexFile} from './codexFiles.js';
-import {appendLlmMessages, buildContextMessages, ensureLlmConversation} from './llmConversations.js';
-import {deleteProfile, getProfileFiles, listProfiles, saveProfileFiles, upsertProfile} from './profiles.js';
-import {scanSessions} from './scanner.js';
-import {closeSessionWindow, getSessionWindowStatus, reopenSessionWindow} from './sessionWindows.js';
 import {
+  appendLlmMessages,
+  buildContextMessages,
+  createLlmConversation,
+  deleteLlmConversation,
+  ensureLlmConversation,
+  listLlmConversations,
+  reorderLlmConversations,
+  updateLlmConversation
+} from './llmConversations.js';
+import {createWorkspaceAndOpenSession} from './newSession.js';
+import {deleteProfile, getProfileFiles, listProfiles, saveProfileFiles, upsertProfile} from './profiles.js';
+import {getAnnouncementFeed, getAppInfo, getVersionFeed} from './releaseFeeds.js';
+import {scanSessions} from './scanner.js';
+import {closeSessionWindow, getSessionWindowStatus, listSessionWindowStatuses, reopenSessionWindow} from './sessionWindows.js';
+import {
+  deleteSession,
   getSession,
   listProjects,
   listSessions,
+  setArchived,
   setBoundPath,
   setCategory,
+  setFavorite,
   setNote,
   setSessionLaunchOptions,
   toggleArchived,
   toggleFavorite
 } from './sessions.js';
 import {getSettings, resolveApiKey, updateSettings} from './settings.js';
+import {defaultRegistryUrl, fetchSyncRegistryWithStatus, installSyncItems} from './syncRegistry.js';
 import {getTranscript, resetTranscriptEdits, saveTranscriptEdits} from './transcript.js';
+import {downloadLatestUpdate, getLatestUpdateAssets, openDownloadedUpdate} from './updateDownloads.js';
+import {getProjectAgentsFile, saveProjectAgentsFile} from './projectAgents.js';
 import type {AppSettings, LlmPermissionLevel, SessionRecord, TranscriptMessage} from '../types.js';
 
 type LlmChatMessage = {
@@ -44,8 +62,9 @@ type StreamCallbacks = {
   onDone?: (data: unknown) => void;
 };
 
-const dangerousTools = new Set([
+const writeTools = new Set([
   'openSession',
+  'createNewSession',
   'closeSessionWindow',
   'reopenSessionWindow',
   'setNote',
@@ -54,13 +73,30 @@ const dangerousTools = new Set([
   'setSessionOptions',
   'toggleFavorite',
   'toggleArchived',
+  'setFavorite',
+  'setArchived',
+  'deleteSession',
+  'batchSessions',
   'upsertProfile',
   'deleteProfile',
   'updateSettings',
   'saveProfileFiles',
   'saveCodexFile',
+  'saveProjectAgents',
   'saveTranscriptEdits',
-  'resetTranscriptEdits'
+  'resetTranscriptEdits',
+  'saveSkill',
+  'deleteSkill',
+  'saveMcpServer',
+  'deleteMcpServer',
+  'saveHooks',
+  'installSyncItems',
+  'downloadUpdate',
+  'openDownloadedUpdate',
+  'createLlmConversation',
+  'updateLlmConversation',
+  'deleteLlmConversation',
+  'reorderLlmConversations'
 ]);
 
 export async function runLlmTask(input: {task: string; text: string; instruction?: string}) {
@@ -107,7 +143,7 @@ export async function runLlmChat(input: {messages: LlmChatMessage[]; permissionL
     throw new Error('LLM API key is not configured');
   }
 
-  const permissionLevel = input.permissionLevel ?? 'normal';
+  const permissionLevel = normalizePermission(input.permissionLevel) ?? 'readonly';
   const prompt = await buildChatPrompt(input.messages, permissionLevel);
   const response = await fetch(`${settings.llm.baseUrl.replace(/\/$/, '')}/responses`, {
     method: 'POST',
@@ -143,7 +179,7 @@ export async function runLlmChat(input: {messages: LlmChatMessage[]; permissionL
 
 export async function runManagedLlmChat(input: {conversationId?: string; text: string; permissionLevel?: LlmPermissionLevel}) {
   const conversation = await ensureLlmConversation(input.conversationId);
-  const permissionLevel = input.permissionLevel ?? conversation.permissionLevel;
+  const permissionLevel = normalizePermission(input.permissionLevel) ?? normalizePermission(conversation.permissionLevel) ?? 'readonly';
   const now = new Date().toISOString();
   const userMessage = {
     id: randomUUID(),
@@ -174,7 +210,7 @@ export async function runManagedLlmChatStream(input: {
   permissionLevel?: LlmPermissionLevel;
 }, callbacks: StreamCallbacks) {
   const conversation = await ensureLlmConversation(input.conversationId);
-  const permissionLevel = input.permissionLevel ?? conversation.permissionLevel;
+  const permissionLevel = normalizePermission(input.permissionLevel) ?? normalizePermission(conversation.permissionLevel) ?? 'readonly';
   const now = new Date().toISOString();
   const userMessage = {
     id: randomUUID(),
@@ -227,19 +263,33 @@ function defaultInstruction(task: string) {
 }
 
 async function buildChatPrompt(messages: LlmChatMessage[], permissionLevel: LlmPermissionLevel) {
-  const [profiles, sessions, projects, settings] = await Promise.all([
+  const normalizedPermission = normalizePermission(permissionLevel) ?? 'readonly';
+  const [profiles, sessions, projects, settings, skills, mcpServers, appInfo, updates, announcements] = await Promise.all([
     listProfiles(),
     listSessions({all: true, limit: 20}),
     listProjects(),
-    getSettings()
+    getSettings(),
+    listSkills({}),
+    listMcpServers(),
+    getAppInfo(),
+    getVersionFeed(),
+    getAnnouncementFeed()
   ]);
 
   const context = {
     product: 'Codex会话管家',
-    permissionLevel,
-    limits: permissionLevel === 'dangerous'
-      ? '读写权限：可以调用本工具暴露的读写动作，包括保存配置、编辑聊天记录副本、关闭/重开会话窗口。仍然不能执行任意 shell、访问任意 URL 或修改 Codex 原始 jsonl。'
-      : '只读权限：只能读取、查询和生成 dry-run 命令。不能写入配置、修改记录、真实打开会话、关闭窗口或重开窗口。',
+    permissionLevel: normalizedPermission,
+    limits: isReadwrite(normalizedPermission)
+      ? '读写权限：可以调用本工具暴露的全部读写动作，包括会话、Profile、Codex 配置、AGENTS、Skills、MCP、Hooks、同步中心、更新下载和 LLM 会话管理。仍然不能执行任意 shell、访问任意非白名单接口或修改本工具未暴露的文件。'
+      : '只读权限：只能读取、查询、分析和生成 dry-run 命令。不能写入配置、修改记录、真实打开会话、关闭窗口、安装同步项或下载更新。',
+    appInfo,
+    updates: {
+      currentVersion: updates.currentVersion,
+      latestVersion: updates.latestVersion,
+      hasUpdate: updates.hasUpdate,
+      latest: updates.latest
+    },
+    announcements: announcements.entries.slice(0, 5),
     settings: {
       globalProfile: settings.globalProfile,
       yoloDefault: settings.yoloDefault,
@@ -259,13 +309,22 @@ async function buildChatPrompt(messages: LlmChatMessage[], permissionLevel: LlmP
       commandArgs: profile.commandArgs
     })),
     projects: projects.slice(0, 20),
-    recentSessions: sessions.map(session => compactSession(session))
+    recentSessions: sessions.map(session => compactSession(session)),
+    skills: skills.slice(0, 40).map(skill => ({
+      name: skill.name,
+      scope: skill.scope,
+      exists: skill.exists,
+      description: skill.description,
+      directory: skill.directory,
+      updatedAt: skill.updatedAt
+    })),
+    mcpServers
   };
 
   return [
     '你是“Codex会话管家”的内置助手，名字叫“Jnm 小助手”。你要用中文回答，帮助用户管理 Codex CLI 历史会话。',
     '你具有上下文记忆：下面会给出最近聊天记录、本工具状态和可调用动作。',
-    `当前权限等级：${permissionLevel === 'dangerous' ? '读写' : '只读'}。`,
+    `当前权限等级：${isReadwrite(normalizedPermission) ? '读写' : '只读'}。`,
     '权限边界：你只能建议或调用下列白名单动作。不要声称能访问本工具之外的文件、网络、系统命令或 Codex 内部未暴露能力。',
     '当需要执行动作时，只输出严格 JSON，不要 Markdown，不要代码块。reply 字段必须是给用户看的自然中文，不要把 JSON 当成用户可读内容解释。',
     '输出格式：{"reply":"给用户看的中文回复","actions":[{"tool":"工具名","args":{}}]}。',
@@ -274,8 +333,11 @@ async function buildChatPrompt(messages: LlmChatMessage[], permissionLevel: LlmP
     '可用工具：',
     '- scanSessions {}：重新扫描 Codex 会话。',
     '- listSessions {query?, status?, limit?}：查询会话。status 可为 all, active, archived, favorite, missing。',
+    '- getSession {id}：读取单个会话详情。',
     '- openSession {id, dryRun?, profile?, yolo?}：打开会话；dryRun=true 只返回命令。',
+    '- createNewSession {workspacePath, createFolder?, profile?, yolo?, prompt?}：创建工作区并打开新 Codex 会话。读写权限。',
     '- getSessionWindow {id}：检查某个会话窗口是否已打开。',
+    '- listSessionWindows {ids?}：批量检查会话窗口状态。',
     '- closeSessionWindow {id}：关闭某个会话对应的 PowerShell 窗口。读写权限。',
     '- reopenSessionWindow {id, profile?, yolo?}：关闭并重开某个会话窗口。读写权限。',
     '- setNote {id, note}：设置会话备注。',
@@ -284,18 +346,46 @@ async function buildChatPrompt(messages: LlmChatMessage[], permissionLevel: LlmP
     '- setSessionOptions {id, profile?, yolo?}：设置单会话 Profile/yolo。',
     '- toggleFavorite {id}：切换收藏。',
     '- toggleArchived {id}：切换归档。',
+    '- setFavorite {id, favorite}：设置收藏状态。读写权限。',
+    '- setArchived {id, archived}：设置归档状态。读写权限。',
+    '- deleteSession {id, deleteFile?}：删除会话索引，可选删除原始 jsonl。读写权限。',
+    '- batchSessions {ids, action, deleteFile?}：批量 favorite/unfavorite/archive/unarchive/delete。读写权限。',
     '- listProjects {}：列出项目。',
     '- listProfiles {}：列出 Profile。',
     '- upsertProfile {id?, name, note?, commandArgs?}：新增或更新本工具 Profile 备注。',
     '- deleteProfile {id}：删除本工具创建的 Profile 记录。',
-    '- updateSettings {globalProfile?, yoloDefault?}：更新全局 Profile/yolo 默认值。',
+    '- updateSettings {globalProfile?, yoloDefault?, llm?}：更新全局设置，llm 可包含 enabled/provider/model/baseUrl/apiKeySource/apiKeyEnv/manualApiKey。',
     '- getTranscript {id}：读取某个会话可解析的聊天记录。',
     '- saveTranscriptEdits {id, messages}：保存某个会话的聊天记录编辑副本。读写权限，只修改本工具副本。',
     '- resetTranscriptEdits {id}：删除某个会话的聊天记录编辑副本并回到原始记录。读写权限。',
     '- getProfileFiles {id}：读取 Profile 对应的 config toml 和 Markdown。',
     '- saveProfileFiles {id, configContent?, markdownContent?}：保存 Profile 对应的 config toml 和 Markdown。',
-    '- getCodexFile {name}：读取 Codex 主配置文件。name 只能是 config.toml 或 auth.json。',
-    '- saveCodexFile {name, content}：保存 Codex 主配置文件。name 只能是 config.toml 或 auth.json。',
+    '- getCodexFile {name}：读取 Codex 主配置文件。name 只能是 config.toml、auth.json 或 AGENTS.md。auth.json 会脱敏返回。',
+    '- saveCodexFile {name, content}：保存 Codex 主配置文件。name 只能是 config.toml、auth.json 或 AGENTS.md。',
+    '- getProjectAgents {projectPath}：读取项目级 AGENTS.md。',
+    '- saveProjectAgents {projectPath, content}：保存项目级 AGENTS.md。读写权限。',
+    '- listSkills {scope?, projectPath?}：列出全局/项目级 Skills。',
+    '- getSkill {scope, name, projectPath?}：读取 Skill 的 SKILL.md。',
+    '- saveSkill {scope, name, content, projectPath?}：保存 Skill 的 SKILL.md。读写权限。',
+    '- deleteSkill {scope, name, projectPath?}：删除 Skill。读写权限。',
+    '- listMcpServers {}：列出 MCP 配置块。',
+    '- saveMcpServer {name, body}：保存 MCP 配置块。读写权限。',
+    '- deleteMcpServer {name}：删除 MCP 配置块。读写权限。',
+    '- getHooks {scope, projectPath?}：读取 hooks.json。',
+    '- saveHooks {scope, content, projectPath?}：保存 hooks.json。读写权限。',
+    '- fetchSyncRegistry {url?, skillScope?, projectPath?}：读取同步仓库并检测本地安装/更新状态。',
+    '- installSyncItems {url?, items, skillScope?, projectPath?}：安装或同步 Skill/Profile。读写权限。',
+    '- getAppInfo {}：读取应用信息。',
+    '- getUpdates {}：读取版本更新记录。',
+    '- getAnnouncements {}：读取公告。',
+    '- getUpdateAssets {}：读取 GitHub Release 更新资产。',
+    '- downloadUpdate {kind}：下载更新包，kind 为 setup 或 portable。读写权限。',
+    '- openDownloadedUpdate {path, mode}：打开本工具下载目录中的安装包或文件夹。读写权限。',
+    '- listLlmConversations {}：列出 Jnm 小助手聊天会话。',
+    '- createLlmConversation {title?, category?, maxContext?}：创建小助手聊天会话。读写权限。',
+    '- updateLlmConversation {id, title?, category?, pinned?, maxContext?, permissionLevel?}：更新小助手会话元数据。读写权限。',
+    '- deleteLlmConversation {id}：删除小助手聊天会话。读写权限。',
+    '- reorderLlmConversations {ids}：拖拽排序小助手聊天会话。读写权限。',
     '',
     '当前工具状态 JSON：',
     JSON.stringify(context, null, 2),
@@ -390,7 +480,8 @@ async function streamLlmChat(input: {
 async function executeToolAction(action: LlmAction, permissionLevel: LlmPermissionLevel): Promise<LlmActionResult> {
   try {
     const args = action.args ?? {};
-    if (permissionLevel !== 'dangerous' && dangerousTools.has(action.tool)) {
+    const normalizedPermission = normalizePermission(permissionLevel) ?? 'readonly';
+    if (!isReadwrite(normalizedPermission) && writeTools.has(action.tool)) {
       if (action.tool === 'openSession' && booleanArg(args.dryRun) === true) {
         // Dry-run only returns a command string and does not launch a shell.
       } else {
@@ -412,6 +503,10 @@ async function executeToolAction(action: LlmAction, permissionLevel: LlmPermissi
         const filtered = await filterSessionsByStatus(sessions, stringArg(args.status));
         return ok(action.tool, `找到 ${filtered.length} 个会话。`, filtered.slice(0, 20).map(compactSession));
       }
+      case 'getSession': {
+        const session = await getSession(requiredString(args.id, 'id'));
+        return ok(action.tool, `已读取 ${session.id.slice(0, 8)} 的会话详情。`, compactSession(session));
+      }
       case 'openSession': {
         const session = await getSession(requiredString(args.id, 'id'));
         const command = await launchSessionWithDefaults(session, {
@@ -420,6 +515,16 @@ async function executeToolAction(action: LlmAction, permissionLevel: LlmPermissi
           yolo: booleanArg(args.yolo)
         });
         return ok(action.tool, booleanArg(args.dryRun) ? '已生成打开命令。' : '已发送打开会话请求。', {command});
+      }
+      case 'createNewSession': {
+        const result = await createWorkspaceAndOpenSession({
+          workspacePath: requiredString(args.workspacePath, 'workspacePath'),
+          createFolder: booleanArg(args.createFolder) ?? true,
+          profile: stringArg(args.profile),
+          yolo: booleanArg(args.yolo),
+          prompt: stringArgAllowEmpty(args.prompt)
+        });
+        return ok(action.tool, '已创建工作区并打开新 Codex 会话。', result);
       }
       case 'setCategory': {
         const session = await setCategory(requiredString(args.id, 'id'), stringArg(args.category) ?? '');
@@ -436,6 +541,13 @@ async function executeToolAction(action: LlmAction, permissionLevel: LlmPermissi
             title: process.title
           }))
         });
+      }
+      case 'listSessionWindows': {
+        const ids = Array.isArray(args.ids)
+          ? args.ids.filter((id): id is string => typeof id === 'string')
+          : (await listSessions({all: true, limit: 50})).map(session => session.id);
+        const statuses = await listSessionWindowStatuses(ids);
+        return ok(action.tool, `已检查 ${statuses.length} 个会话窗口。`, statuses);
       }
       case 'closeSessionWindow': {
         const result = await closeSessionWindow(requiredString(args.id, 'id'));
@@ -474,6 +586,44 @@ async function executeToolAction(action: LlmAction, permissionLevel: LlmPermissi
         const session = await toggleArchived(requiredString(args.id, 'id'));
         return ok(action.tool, session.archived ? '已归档会话。' : '已取消归档会话。', compactSession(session));
       }
+      case 'setFavorite': {
+        const session = await setFavorite(requiredString(args.id, 'id'), booleanArg(args.favorite) ?? true);
+        return ok(action.tool, session.favorite ? '已收藏会话。' : '已取消收藏会话。', compactSession(session));
+      }
+      case 'setArchived': {
+        const session = await setArchived(requiredString(args.id, 'id'), booleanArg(args.archived) ?? true);
+        return ok(action.tool, session.archived ? '已归档会话。' : '已取消归档会话。', compactSession(session));
+      }
+      case 'deleteSession': {
+        const result = await deleteSession(requiredString(args.id, 'id'), {
+          deleteFile: booleanArg(args.deleteFile) ?? true
+        });
+        return ok(action.tool, `已删除会话 ${result.session.id.slice(0, 8)}。`, {
+          session: compactSession(result.session),
+          deletedFile: result.deletedFile
+        });
+      }
+      case 'batchSessions': {
+        const ids = requiredStringArray(args.ids, 'ids');
+        const batchAction = requiredString(args.action, 'action');
+        const results = [];
+        for (const id of ids) {
+          if (batchAction === 'favorite') {
+            results.push(compactSession(await setFavorite(id, true)));
+          } else if (batchAction === 'unfavorite') {
+            results.push(compactSession(await setFavorite(id, false)));
+          } else if (batchAction === 'archive') {
+            results.push(compactSession(await setArchived(id, true)));
+          } else if (batchAction === 'unarchive') {
+            results.push(compactSession(await setArchived(id, false)));
+          } else if (batchAction === 'delete') {
+            results.push(await deleteSession(id, {deleteFile: booleanArg(args.deleteFile) ?? true}));
+          } else {
+            throw new Error(`Unknown batch action: ${batchAction}`);
+          }
+        }
+        return ok(action.tool, `批量操作完成：${results.length} 条。`, results);
+      }
       case 'listProjects': {
         const projects = await listProjects();
         return ok(action.tool, `找到 ${projects.length} 个项目。`, projects.slice(0, 30));
@@ -503,10 +653,21 @@ async function executeToolAction(action: LlmAction, permissionLevel: LlmPermissi
         if (typeof args.yoloDefault === 'boolean') {
           payload.yoloDefault = args.yoloDefault;
         }
+        if (args.llm && typeof args.llm === 'object') {
+          const current = await getSettings();
+          payload.llm = {
+            ...current.llm,
+            ...(args.llm as Partial<AppSettings['llm']>)
+          };
+        }
         const settings = await updateSettings(payload);
         return ok(action.tool, '已更新全局设置。', {
           globalProfile: settings.globalProfile,
-          yoloDefault: settings.yoloDefault
+          yoloDefault: settings.yoloDefault,
+          llm: {
+            ...settings.llm,
+            manualApiKey: settings.llm.manualApiKey ? '***' : undefined
+          }
         });
       }
       case 'getTranscript': {
@@ -565,6 +726,164 @@ async function executeToolAction(action: LlmAction, permissionLevel: LlmPermissi
           updatedAt: file.updatedAt
         });
       }
+      case 'getProjectAgents': {
+        const file = await getProjectAgentsFile(requiredString(args.projectPath, 'projectPath'));
+        return ok(action.tool, '已读取项目级 AGENTS.md。', file);
+      }
+      case 'saveProjectAgents': {
+        const file = await saveProjectAgentsFile(
+          requiredString(args.projectPath, 'projectPath'),
+          stringArgAllowEmpty(args.content) ?? ''
+        );
+        return ok(action.tool, '已保存项目级 AGENTS.md。', {
+          path: file.path,
+          updatedAt: file.updatedAt
+        });
+      }
+      case 'listSkills': {
+        const skills = await listSkills({
+          scope: optionalScope(args.scope),
+          projectPath: stringArg(args.projectPath)
+        });
+        return ok(action.tool, `找到 ${skills.length} 个 Skill。`, skills);
+      }
+      case 'getSkill': {
+        const skill = await getSkill({
+          scope: requiredScope(args.scope),
+          name: requiredString(args.name, 'name'),
+          projectPath: stringArg(args.projectPath)
+        });
+        return ok(action.tool, `已读取 Skill ${skill.skill.name}。`, skill);
+      }
+      case 'saveSkill': {
+        const skill = await saveSkill({
+          scope: requiredScope(args.scope),
+          name: requiredString(args.name, 'name'),
+          content: stringArgAllowEmpty(args.content) ?? '',
+          projectPath: stringArg(args.projectPath)
+        });
+        return ok(action.tool, `已保存 Skill ${skill.skill.name}。`, skill.skill);
+      }
+      case 'deleteSkill': {
+        const result = await deleteSkill({
+          scope: requiredScope(args.scope),
+          name: requiredString(args.name, 'name'),
+          projectPath: stringArg(args.projectPath)
+        });
+        return ok(action.tool, '已删除 Skill。', result);
+      }
+      case 'listMcpServers': {
+        const data = await listMcpServers();
+        return ok(action.tool, `找到 ${data.servers.length} 个 MCP 服务。`, data);
+      }
+      case 'saveMcpServer': {
+        const data = await saveMcpServer({
+          name: requiredString(args.name, 'name'),
+          body: stringArgAllowEmpty(args.body) ?? ''
+        });
+        return ok(action.tool, '已保存 MCP 服务配置。', data);
+      }
+      case 'deleteMcpServer': {
+        const data = await deleteMcpServer(requiredString(args.name, 'name'));
+        return ok(action.tool, '已删除 MCP 服务配置。', data);
+      }
+      case 'getHooks': {
+        const hooks = await getHooksFile({
+          scope: requiredScope(args.scope),
+          projectPath: stringArg(args.projectPath)
+        });
+        return ok(action.tool, '已读取 hooks.json。', hooks);
+      }
+      case 'saveHooks': {
+        const hooks = await saveHooksFile({
+          scope: requiredScope(args.scope),
+          content: stringArgAllowEmpty(args.content) ?? '',
+          projectPath: stringArg(args.projectPath)
+        });
+        return ok(action.tool, '已保存 hooks.json。', {
+          scope: hooks.scope,
+          path: hooks.path,
+          updatedAt: hooks.updatedAt
+        });
+      }
+      case 'fetchSyncRegistry': {
+        const registry = await fetchSyncRegistryWithStatus({
+          url: stringArg(args.url) ?? defaultRegistryUrl,
+          skillScope: requiredScope(args.skillScope ?? 'global'),
+          projectPath: stringArg(args.projectPath)
+        });
+        return ok(action.tool, `同步仓库共有 ${registry.count} 个条目。`, registry);
+      }
+      case 'installSyncItems': {
+        const result = await installSyncItems({
+          url: stringArg(args.url) ?? defaultRegistryUrl,
+          items: Array.isArray(args.items) ? args.items as never : [],
+          skillScope: requiredScope(args.skillScope ?? 'global'),
+          projectPath: stringArg(args.projectPath)
+        });
+        return ok(action.tool, `已安装/同步 ${result.installed.length} 个条目。`, result);
+      }
+      case 'getAppInfo': {
+        return ok(action.tool, '已读取应用信息。', await getAppInfo());
+      }
+      case 'getUpdates': {
+        return ok(action.tool, '已读取版本更新记录。', await getVersionFeed());
+      }
+      case 'getAnnouncements': {
+        return ok(action.tool, '已读取公告。', await getAnnouncementFeed());
+      }
+      case 'getUpdateAssets': {
+        return ok(action.tool, '已读取更新资产。', await getLatestUpdateAssets());
+      }
+      case 'downloadUpdate': {
+        const result = await downloadLatestUpdate(updateKindArg(args.kind), () => {});
+        return ok(action.tool, '已下载更新包。', result);
+      }
+      case 'openDownloadedUpdate': {
+        const result = await openDownloadedUpdate(
+          requiredString(args.path, 'path'),
+          args.mode === 'folder' ? 'folder' : 'file'
+        );
+        return ok(action.tool, '已打开更新文件或目录。', result);
+      }
+      case 'listLlmConversations': {
+        const conversations = await listLlmConversations();
+        return ok(action.tool, `找到 ${conversations.length} 个小助手会话。`, conversations);
+      }
+      case 'createLlmConversation': {
+        const conversation = await createLlmConversation({
+          title: stringArg(args.title),
+          category: stringArgAllowEmpty(args.category),
+          maxContext: numberArg(args.maxContext)
+        });
+        return ok(action.tool, '已创建小助手会话。', {
+          ...conversation,
+          messages: undefined,
+          messageCount: conversation.messages.length
+        });
+      }
+      case 'updateLlmConversation': {
+        const conversation = await updateLlmConversation(requiredString(args.id, 'id'), {
+          title: stringArg(args.title),
+          category: stringArgAllowEmpty(args.category),
+          pinned: booleanArg(args.pinned),
+          maxContext: numberArg(args.maxContext),
+          permissionLevel: normalizePermission(args.permissionLevel)
+        });
+        return ok(action.tool, '已更新小助手会话。', {
+          ...conversation,
+          messages: undefined,
+          messageCount: conversation.messages.length
+        });
+      }
+      case 'deleteLlmConversation': {
+        const result = await deleteLlmConversation(requiredString(args.id, 'id'));
+        return ok(action.tool, '已删除小助手会话。', result);
+      }
+      case 'reorderLlmConversations': {
+        const conversations = await reorderLlmConversations(requiredStringArray(args.ids, 'ids'));
+        return ok(action.tool, '已更新小助手会话排序。', conversations);
+      }
       default:
         return fail(action.tool, `工具不在白名单内：${action.tool}`);
     }
@@ -620,12 +939,48 @@ function booleanArg(value: unknown) {
   return typeof value === 'boolean' ? value : undefined;
 }
 
+function requiredStringArray(value: unknown, field: string) {
+  if (!Array.isArray(value) || !value.every(item => typeof item === 'string' && item.length > 0)) {
+    throw new Error(`Missing required action field: ${field}`);
+  }
+  return value as string[];
+}
+
 function requiredString(value: unknown, field: string) {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error(`Missing required action field: ${field}`);
   }
 
   return value;
+}
+
+function optionalScope(value: unknown) {
+  return value === 'global' || value === 'project' ? value : undefined;
+}
+
+function requiredScope(value: unknown) {
+  if (value === 'global' || value === 'project') {
+    return value;
+  }
+  throw new Error('Missing required action field: scope');
+}
+
+function updateKindArg(value: unknown) {
+  return value === 'portable' ? 'portable' : 'setup';
+}
+
+function normalizePermission(value: unknown): LlmPermissionLevel | undefined {
+  if (value === 'readwrite' || value === 'dangerous') {
+    return 'readwrite';
+  }
+  if (value === 'readonly' || value === 'normal') {
+    return 'readonly';
+  }
+  return undefined;
+}
+
+function isReadwrite(value: LlmPermissionLevel) {
+  return normalizePermission(value) === 'readwrite';
 }
 
 function maskAuthContent(content: string) {

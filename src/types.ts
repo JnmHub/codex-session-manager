@@ -69,7 +69,7 @@ export type LlmConversationMessage = {
   }>;
 };
 
-export type LlmPermissionLevel = 'normal' | 'dangerous';
+export type LlmPermissionLevel = 'readonly' | 'readwrite' | 'normal' | 'dangerous';
 
 export type LlmConversation = {
   id: string;

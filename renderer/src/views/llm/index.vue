@@ -230,7 +230,7 @@
   import { apiRequest, getErrorMessage } from '@/utils/session-manager-api'
 
   type ChatRole = 'user' | 'assistant'
-  type PermissionLevel = 'normal' | 'dangerous'
+  type PermissionLevel = 'readonly' | 'readwrite' | 'normal' | 'dangerous'
   type ToolActionResult = { tool: string; ok: boolean; summary: string; data?: unknown }
   type ChatMessage = { id: string; role: ChatRole; text: string; createdAt: string; actions?: ToolActionResult[] }
   type Conversation = {
@@ -258,7 +258,7 @@
   const settings = ref<any>()
   const conversations = ref<Conversation[]>([])
   const activeConversation = ref<Conversation>()
-  const metaForm = reactive({ category: '', maxContext: 12, permissionLevel: 'normal' as PermissionLevel })
+  const metaForm = reactive({ category: '', maxContext: 12, permissionLevel: 'readonly' as PermissionLevel })
   const contextMenu = reactive({
     visible: false,
     x: 0,
@@ -267,27 +267,51 @@
   })
 
   const toolNames = [
+    'scanSessions',
     'listSessions',
+    'getSession',
     'openSession',
+    'createNewSession',
     'getSessionWindow',
+    'listSessionWindows',
     'closeSessionWindow',
     'reopenSessionWindow',
     'setNote',
+    'setCategory',
     'bindPath',
     'setSessionOptions',
     'toggleFavorite',
     'toggleArchived',
+    'deleteSession',
+    'batchSessions',
     'listProfiles',
+    'upsertProfile',
+    'deleteProfile',
     'getProfileFiles',
     'saveProfileFiles',
     'getCodexFile',
     'saveCodexFile',
+    'getProjectAgents',
+    'saveProjectAgents',
+    'listSkills',
+    'getSkill',
+    'saveSkill',
+    'deleteSkill',
+    'listMcpServers',
+    'saveMcpServer',
+    'deleteMcpServer',
+    'getHooks',
+    'saveHooks',
+    'fetchSyncRegistry',
+    'installSyncItems',
     'saveTranscriptEdits',
-    'resetTranscriptEdits'
+    'resetTranscriptEdits',
+    'getUpdates',
+    'getAnnouncements'
   ]
   const permissionOptions = [
-    { label: '只读', value: 'normal' },
-    { label: '读写', value: 'dangerous' }
+    { label: '只读', value: 'readonly' },
+    { label: '读写', value: 'readwrite' }
   ]
 
   const activeMessages = computed(() => activeConversation.value?.messages || [])
@@ -301,7 +325,7 @@
   watch(activeConversation, (conversation) => {
     metaForm.category = conversation?.category || ''
     metaForm.maxContext = conversation?.maxContext || 12
-    metaForm.permissionLevel = conversation?.permissionLevel || 'normal'
+    metaForm.permissionLevel = normalizePermission(conversation?.permissionLevel)
   })
 
   onMounted(async () => {
@@ -350,9 +374,9 @@
   }
 
   async function changePermission(value: string | number | boolean) {
-    if (value === 'dangerous') {
+    if (value === 'readwrite' || value === 'dangerous') {
       const confirmed = await ElMessageBox.confirm(
-        '读写权限允许 Jnm 小助手在本工具范围内执行写入操作，例如归档、备注、绑定路径、保存配置、保存聊天记录编辑副本和打开/重开会话。确认开启？',
+        '读写权限允许 Jnm 小助手在本工具范围内执行所有写入操作，例如会话、Profile、配置、AGENTS、Skills、MCP、Hooks、同步安装、更新下载和打开/重开会话。确认开启？',
         '开启读写权限',
         {
           type: 'warning',
@@ -362,9 +386,10 @@
         }
       ).then(() => true).catch(() => false)
       if (!confirmed) {
-        metaForm.permissionLevel = activeConversation.value?.permissionLevel || 'normal'
+        metaForm.permissionLevel = normalizePermission(activeConversation.value?.permissionLevel)
         return
       }
+      metaForm.permissionLevel = 'readwrite'
     }
     await saveCurrentMeta()
   }
@@ -659,6 +684,10 @@
     if (typeof value === 'boolean') return value ? '是' : '否'
     if (typeof value === 'object') return Array.isArray(value) ? `${value.length} 项` : '对象'
     return String(value)
+  }
+
+  function normalizePermission(value: unknown): PermissionLevel {
+    return value === 'readwrite' || value === 'dangerous' ? 'readwrite' : 'readonly'
   }
 
   async function scrollToBottom() {

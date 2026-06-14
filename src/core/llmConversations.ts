@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {loadStore, saveStore} from './store.js';
-import type {LlmConversation, LlmConversationMessage} from '../types.js';
+import type {LlmConversation, LlmConversationMessage, LlmPermissionLevel} from '../types.js';
 
 export async function listLlmConversations() {
   const store = await loadStore();
@@ -39,14 +39,14 @@ export async function createLlmConversation(input: Partial<Pick<LlmConversation,
     pinned: false,
     order,
     maxContext: normalizeMaxContext(input.maxContext),
-    permissionLevel: 'normal',
+    permissionLevel: 'readonly',
     createdAt: now,
     updatedAt: now,
     messages: [
       {
         id: randomUUID(),
         role: 'assistant',
-        text: '我是 Jnm 小助手，我可以在 Codex会话管家范围内帮你查找、归档、备注、绑定路径、设置 Profile/yolo、读取聊天记录和打开会话。',
+        text: '我是 Jnm 小助手，我可以在 Codex会话管家范围内帮你查找、归档、备注、绑定路径、设置 Profile/yolo、读取聊天记录、管理 Skills/MCP/Hooks/同步中心，并按权限执行本工具接口。',
         createdAt: now
       }
     ]
@@ -79,9 +79,7 @@ export async function updateLlmConversation(
     category: typeof input.category === 'string' ? input.category.trim() || undefined : conversation.category,
     pinned: typeof input.pinned === 'boolean' ? input.pinned : conversation.pinned,
     maxContext: input.maxContext === undefined ? conversation.maxContext : normalizeMaxContext(input.maxContext),
-    permissionLevel: input.permissionLevel === 'dangerous' || input.permissionLevel === 'normal'
-      ? input.permissionLevel
-      : conversation.permissionLevel,
+    permissionLevel: normalizePermission(input.permissionLevel) ?? conversation.permissionLevel,
     updatedAt: new Date().toISOString()
   };
   await saveStore(store);
@@ -140,6 +138,16 @@ function normalizeMaxContext(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.min(50, Math.max(4, Math.floor(value)))
     : 12;
+}
+
+function normalizePermission(value: unknown): LlmPermissionLevel | undefined {
+  if (value === 'readwrite' || value === 'dangerous') {
+    return 'readwrite';
+  }
+  if (value === 'readonly' || value === 'normal') {
+    return 'readonly';
+  }
+  return undefined;
 }
 
 function titleFromText(text: string) {

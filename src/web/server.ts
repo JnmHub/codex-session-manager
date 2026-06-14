@@ -690,5 +690,11 @@ function requireHookScope(value: unknown): HookScope {
 }
 
 function optionalPermission(value: unknown): LlmPermissionLevel | undefined {
-  return value === 'normal' || value === 'dangerous' ? value : undefined;
+  if (value === 'readwrite' || value === 'dangerous') {
+    return 'readwrite';
+  }
+  if (value === 'readonly' || value === 'normal') {
+    return 'readonly';
+  }
+  return undefined;
 }

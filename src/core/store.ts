@@ -76,7 +76,9 @@ export function normalizeStore(parsed: Partial<StoreData>): StoreData {
         id,
         {
           ...conversation,
-          permissionLevel: conversation.permissionLevel === 'dangerous' ? 'dangerous' : 'normal',
+          permissionLevel: conversation.permissionLevel === 'dangerous' || conversation.permissionLevel === 'readwrite'
+            ? 'readwrite'
+            : 'readonly',
           messages: (conversation.messages ?? []).map(message => ({
             ...message,
             text: message.text === '我可以在会话管家范围内帮你查找、归档、备注、绑定路径、设置 Profile/yolo、读取聊天记录和打开会话。'
