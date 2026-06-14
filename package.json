@@ -1,0 +1,103 @@
+{
+  "name": "codex-session-manager",
+  "version": "0.1.0",
+  "description": "A modern CLI and local web UI for managing Codex CLI sessions.",
+  "type": "module",
+  "main": "dist/electron/main.js",
+  "author": "Jnm",
+  "license": "MIT",
+  "homepage": "https://github.com/JnmHub/codex-session-manager#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JnmHub/codex-session-manager.git"
+  },
+  "bin": {
+    "cxm": "./dist/cli.js",
+    "codex-session-manager": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && npm --prefix renderer run build",
+    "build:renderer": "npm --prefix renderer run build",
+    "app": "npm run build && electron dist/electron/main.js",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "release:win": "npm run build && electron-builder --win --x64 --publish always",
+    "dev": "tsx src/cli.tsx",
+    "check": "tsc --noEmit"
+  },
+  "build": {
+    "appId": "cn.jnm.codex-session-manager",
+    "productName": "会话管家",
+    "copyright": "Copyright © Jnm",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json",
+      "!dist/**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "version.jsonl",
+        "to": "version.jsonl"
+      },
+      {
+        "from": "announcement.jsonl",
+        "to": "announcement.jsonl"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}-${arch}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "JnmHub",
+        "repo": "codex-session-manager"
+      }
+    ]
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "commander": "^14.0.2",
+    "ink": "^6.5.1",
+    "react": "^19.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "electron": "^42.4.0",
+    "electron-builder": "^26.0.12",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

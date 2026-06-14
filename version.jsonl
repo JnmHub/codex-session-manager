@@ -1,0 +1,1 @@
+{"version":"0.1.0","date":"2026-06-14","title":"首个开源 MVP","content":["Electron 桌面应用版本准备开源发布","支持会话管理、路径绑定、Profile 管理、Codex 配置、LLM 助手","新增 GitHub Release 更新检测、公告中心和关于页面"],"releaseUrl":"https://github.com/JnmHub/codex-session-manager/releases/tag/v0.1.0","critical":false}
