@@ -105,9 +105,9 @@
     yoloDefault: true,
     llm: {
       enabled: true,
-      provider: 'custom',
-      model: 'gpt-5.5',
-      baseUrl: 'http://127.0.0.1:48760/v1',
+      provider: '',
+      model: '',
+      baseUrl: '',
       apiKeySource: 'codex-auth',
       apiKeyEnv: 'OPENAI_API_KEY',
       manualApiKey: ''

@@ -19,9 +19,9 @@ export async function getSettings() {
     ...store.settings,
     llm: {
       ...store.settings.llm,
-      provider: store.settings.llm.provider || codex.provider,
-      model: store.settings.llm.model || codex.model,
-      baseUrl: store.settings.llm.baseUrl || codex.baseUrl,
+      provider: preferStoredSetting(store.settings.llm.provider, codex.provider, defaultSettings.llm.provider),
+      model: preferStoredSetting(store.settings.llm.model, codex.model, defaultSettings.llm.model),
+      baseUrl: preferStoredSetting(store.settings.llm.baseUrl, codex.baseUrl, defaultSettings.llm.baseUrl),
       manualApiKey: '',
       hasKey: await hasConfiguredApiKey(store.settings)
     },
@@ -117,6 +117,14 @@ function readTomlBlock(source: string, name: string) {
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function preferStoredSetting(stored: string | undefined, codexValue: string, defaultValue: string) {
+  if (!stored || stored === defaultValue) {
+    return codexValue;
+  }
+
+  return stored;
 }
 
 function sanitizeLlmSettings(llm: Partial<AppSettings['llm']> | undefined) {

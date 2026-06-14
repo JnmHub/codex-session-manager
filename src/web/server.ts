@@ -289,7 +289,7 @@ async function routeApi(
     },
     'POST /api/note': async () => {
       const payload = requireObject(body);
-      const session = await setNote(requireString(payload.id, 'id'), requireString(payload.note, 'note'));
+      const session = await setNote(requireString(payload.id, 'id'), optionalStringAllowEmpty(payload.note) ?? '');
       return {session};
     },
     'POST /api/bind': async () => {

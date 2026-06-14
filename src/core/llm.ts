@@ -444,7 +444,7 @@ async function executeToolAction(action: LlmAction, permissionLevel: LlmPermissi
         return ok(action.tool, `已关闭 ${result.closed} 个旧窗口并重新打开会话。`, result);
       }
       case 'setNote': {
-        const session = await setNote(requiredString(args.id, 'id'), requiredString(args.note, 'note'));
+        const session = await setNote(requiredString(args.id, 'id'), stringArgAllowEmpty(args.note) ?? '');
         return ok(action.tool, `已更新 ${session.id.slice(0, 8)} 的备注。`, compactSession(session));
       }
       case 'bindPath': {
@@ -598,6 +598,10 @@ function fail(tool: string, summary: string): LlmActionResult {
 
 function stringArg(value: unknown) {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function stringArgAllowEmpty(value: unknown) {
+  return typeof value === 'string' ? value : undefined;
 }
 
 function numberArg(value: unknown) {
