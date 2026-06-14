@@ -279,13 +279,18 @@
 
   async function openDownloaded(mode: 'file' | 'folder') {
     if (!downloadState.filePath) return
-    await apiRequest('/api/update/open', {
-      method: 'POST',
-      body: {
-        path: downloadState.filePath,
-        mode
-      }
-    })
+    try {
+      await apiRequest('/api/update/open', {
+        method: 'POST',
+        body: {
+          path: downloadState.filePath,
+          mode
+        }
+      })
+      ElMessage.success(mode === 'folder' ? '已打开下载目录' : '已启动安装包')
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error))
+    }
   }
 
   function assetKindLabel(kind: UpdateAsset['kind']) {

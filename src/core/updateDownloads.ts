@@ -83,22 +83,43 @@ export async function openDownloadedUpdate(filePath: string, mode: 'file' | 'fol
   await fsp.access(resolved);
 
   if (process.platform === 'win32') {
-    const command = mode === 'folder'
-      ? `explorer.exe /select,"${resolved.replace(/"/g, '""')}"`
-      : `Start-Process -LiteralPath '${resolved.replace(/'/g, "''")}'`;
+    if (mode === 'folder') {
+      await spawnDetached('explorer.exe', [`/select,${resolved}`]);
+      return {ok: true, target: resolved};
+    }
 
-    spawn('powershell.exe', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', command], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true
-    }).unref();
-    return {ok: true};
+    await spawnDetached(resolved, []);
+    return {ok: true, target: resolved};
   }
 
   const target = mode === 'folder' ? path.dirname(resolved) : resolved;
   const command = process.platform === 'darwin' ? 'open' : 'xdg-open';
   spawn(command, [target], {detached: true, stdio: 'ignore'}).unref();
   return {ok: true};
+}
+
+function spawnDetached(command: string, args: string[]) {
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn(command, args, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false
+    });
+    let settled = false;
+
+    child.once('error', error => {
+      settled = true;
+      reject(error);
+    });
+
+    setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      child.unref();
+      resolve();
+    }, 250);
+  });
 }
 
 async function fetchLatestRelease() {

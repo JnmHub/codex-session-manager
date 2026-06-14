@@ -12,7 +12,7 @@ const program = new Command();
 program
   .name('cxm')
   .description('Modern CLI and web UI for Codex CLI sessions')
-  .version('0.1.2');
+  .version('0.1.3');
 
 program
   .command('scan')

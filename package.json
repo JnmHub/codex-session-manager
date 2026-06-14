@@ -1,6 +1,6 @@
 {
   "name": "codex-session-manager",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "A modern CLI and local web UI for managing Codex CLI sessions.",
   "type": "module",
   "main": "dist/electron/main.js",
@@ -41,6 +41,10 @@
       "!dist/**/*.map"
     ],
     "extraResources": [
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      },
       {
         "from": "version.jsonl",
         "to": "version.jsonl"

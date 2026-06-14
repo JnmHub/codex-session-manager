@@ -1,4 +1,5 @@
 import {app, BrowserWindow, dialog, ipcMain, shell} from 'electron';
+import fs from 'node:fs';
 import type http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -49,6 +50,7 @@ async function createWindow() {
     backgroundColor: '#f8fafc',
     autoHideMenuBar: true,
     frame: false,
+    icon: getWindowIcon(),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -63,6 +65,16 @@ async function createWindow() {
   });
 
   await mainWindow.loadURL(webUrl);
+}
+
+function getWindowIcon() {
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    process.resourcesPath ? path.join(process.resourcesPath, 'icon.ico') : '',
+    path.resolve(currentDir, '..', '..', 'build', 'icon.ico')
+  ].filter(Boolean);
+
+  return candidates.find(candidate => fs.existsSync(candidate));
 }
 
 if (gotSingleInstanceLock) {
