@@ -22,7 +22,7 @@
     "build": "tsc && npm --prefix renderer run build",
     "build:renderer": "npm --prefix renderer run build",
     "app": "npm run build && electron dist/electron/main.js",
-    "dist:win": "npm run build && electron-builder --win --x64",
+    "dist:win": "npm run build && electron-builder --win --x64 --publish never",
     "release:win": "npm run build && electron-builder --win --x64 --publish always",
     "dev": "tsx src/cli.tsx",
     "check": "tsc --noEmit"
