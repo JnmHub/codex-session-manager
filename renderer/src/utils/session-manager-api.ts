@@ -43,6 +43,8 @@ export type AppInfo = {
   copyright: string
   repository: string
   releasesUrl: string
+  githubAcceleratorUrl?: string
+  defaultRegistryUrl?: string
   feeds: {
     versions: string
     announcements: string

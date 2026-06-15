@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import {getAppHome} from './paths.js';
+import {fetchGithubUrl, toGithubProxyUrl} from './githubProxy.js';
 
 export type UpdateAssetKind = 'setup' | 'portable';
 
@@ -40,7 +41,7 @@ export async function getLatestUpdateAssets() {
   const assets = release.assets.map(asset => ({
     name: asset.name,
     size: asset.size,
-    browserDownloadUrl: asset.browser_download_url,
+    browserDownloadUrl: toGithubProxyUrl(asset.browser_download_url),
     kind: getAssetKind(asset.name)
   }));
 
@@ -123,7 +124,7 @@ function spawnDetached(command: string, args: string[]) {
 }
 
 async function fetchLatestRelease() {
-  const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`, {
+  const response = await fetchGithubUrl(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`, {
     headers: {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'codex-session-manager'
@@ -147,7 +148,7 @@ async function downloadAsset(asset: UpdateAsset, onProgress: (progress: Download
   await fsp.mkdir(downloadsDir, {recursive: true});
 
   try {
-    const response = await fetch(asset.browserDownloadUrl, {
+    const response = await fetchGithubUrl(asset.browserDownloadUrl, {
       signal: controller.signal,
       headers: {
         'User-Agent': 'codex-session-manager'

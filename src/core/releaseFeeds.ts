@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {fetchGithubUrl, githubAcceleratorBaseUrl, toGithubProxyUrl} from './githubProxy.js';
 
 export type VersionEntry = {
   version: string;
@@ -19,7 +20,7 @@ export type AnnouncementEntry = {
   url?: string;
 };
 
-const APP_VERSION = '0.2.3';
+const APP_VERSION = '0.2.4';
 const REPO_OWNER = 'JnmHub';
 const REPO_NAME = 'codex-session-manager';
 const RAW_BASE_URL = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main`;
@@ -35,9 +36,11 @@ export async function getAppInfo() {
     copyright: 'Jnm Copyright',
     repository: `https://github.com/${REPO_OWNER}/${REPO_NAME}`,
     releasesUrl: RELEASES_URL,
+    githubAcceleratorUrl: githubAcceleratorBaseUrl,
+    defaultRegistryUrl: toGithubProxyUrl('https://raw.githubusercontent.com/JnmHub/codex-session-registry/main/registry.json'),
     feeds: {
-      versions: `${RAW_BASE_URL}/version.jsonl`,
-      announcements: `${RAW_BASE_URL}/announcement.jsonl`
+      versions: toGithubProxyUrl(`${RAW_BASE_URL}/version.jsonl`),
+      announcements: toGithubProxyUrl(`${RAW_BASE_URL}/announcement.jsonl`)
     }
   };
 }
@@ -79,7 +82,7 @@ async function fetchText(url: string) {
   const timeout = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchGithubUrl(url, {
       signal: controller.signal,
       headers: {
         Accept: 'text/plain, application/json'

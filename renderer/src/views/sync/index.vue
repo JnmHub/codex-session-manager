@@ -166,8 +166,11 @@
     count: number
   }
 
-  const defaultUrl = 'https://raw.githubusercontent.com/JnmHub/codex-session-registry/main/registry.json'
-  const registryUrl = ref(localStorage.getItem('cxm-sync-registry-url') || defaultUrl)
+  const rawDefaultUrl = 'https://raw.githubusercontent.com/JnmHub/codex-session-registry/main/registry.json'
+  const defaultUrl =
+    'https://github.aiceo.dev/proxy?url=https%3A%2F%2Fraw.githubusercontent.com%2FJnmHub%2Fcodex-session-registry%2Fmain%2Fregistry.json'
+  const savedRegistryUrl = localStorage.getItem('cxm-sync-registry-url')
+  const registryUrl = ref(!savedRegistryUrl || savedRegistryUrl === rawDefaultUrl ? defaultUrl : savedRegistryUrl)
   const skillScope = ref<'global' | 'project'>('global')
   const projectPath = ref('')
   const keyword = ref('')

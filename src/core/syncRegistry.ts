@@ -3,10 +3,11 @@ import AdmZip from 'adm-zip';
 import {listSkills, saveSkill, saveSkillFiles, type SkillScope} from './codexExtensions.js';
 import {listProfiles, saveProfileFiles, upsertProfile} from './profiles.js';
 import {loadStore, saveStore} from './store.js';
+import {fetchGithubUrl, getDefaultRegistryUrl} from './githubProxy.js';
 
 export const defaultRegistryUrl =
   process.env.CXM_REGISTRY_URL ??
-  'https://raw.githubusercontent.com/JnmHub/codex-session-registry/main/registry.json';
+  getDefaultRegistryUrl();
 const skillFileDownloadConcurrency = 5;
 const maxFetchAttempts = 4;
 const retryableFetchStatuses = new Set([408, 429, 500, 502, 503, 504]);
@@ -423,7 +424,7 @@ async function fetchUrl(url: string, attempt = 1): Promise<Response> {
   }
 
   try {
-    const response = await fetch(parsed);
+    const response = await fetchGithubUrl(parsed);
     if (response.ok) {
       return response;
     }
