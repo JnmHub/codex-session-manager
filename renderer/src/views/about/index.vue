@@ -70,7 +70,7 @@
                 <ArtSvgIcon icon="ri:git-branch-line" />
                 <span>更新记录</span>
               </div>
-              <ElButton :loading="loading" @click="loadFeeds">刷新</ElButton>
+              <ElButton :loading="loading" @click="loadFeeds({ force: true })">刷新</ElButton>
             </div>
           </template>
 
@@ -99,7 +99,7 @@
                 <span>{{ updateAssets?.tagName || 'latest' }}</span>
               </div>
               <div>
-                <ElButton :loading="loadingAssets" @click="loadUpdateAssets">刷新资产</ElButton>
+                <ElButton :loading="loadingAssets" @click="loadUpdateAssets({ force: true })">刷新资产</ElButton>
                 <ElButton type="primary" :loading="downloadState.downloading" @click="downloadUpdate('setup')">
                   下载安装包
                 </ElButton>
@@ -188,6 +188,17 @@
   const updateFeed = ref<UpdateFeed>()
   const announcementFeed = ref<AnnouncementFeed>()
   const updateAssets = ref<UpdateAssetsFeed>()
+  const ABOUT_FEED_CACHE_KEY = 'cxm-about-feed-cache-v1'
+  const ABOUT_FEED_CACHE_TTL_MS = 30 * 60 * 1000
+
+  type AboutFeedCache = {
+    cachedAt: number
+    appInfo?: AppInfo
+    updateFeed?: UpdateFeed
+    announcementFeed?: AnnouncementFeed
+    updateAssets?: UpdateAssetsFeed
+  }
+
   const downloadState = reactive({
     downloading: false,
     percent: 0,
@@ -198,36 +209,100 @@
     (updateAssets.value?.assets || []).filter((asset) => asset.kind === 'setup' || asset.kind === 'portable')
   )
 
-  onMounted(loadFeeds)
+  onMounted(() => {
+    const cached = readFeedsCache()
+    const hasCached = applyFeedsCache(cached)
 
-  async function loadFeeds() {
-    loading.value = true
+    if (hasCached && isFreshCache(cached)) {
+      return
+    }
+
+    void loadFeeds({ silent: hasCached })
+  })
+
+  async function loadFeeds(options: { force?: boolean; silent?: boolean } = {}) {
+    const cached = readFeedsCache()
+
+    if (!options.force && applyFeedsCache(cached) && isFreshCache(cached)) {
+      return
+    }
+
+    loading.value = !options.silent
     try {
-      const [infoData, updateData, announcementData] = await Promise.all([
+      const [infoData, updateData, announcementData, assetsData] = await Promise.all([
         apiRequest<AppInfo>('/api/app-info'),
         apiRequest<UpdateFeed>('/api/updates'),
-        apiRequest<AnnouncementFeed>('/api/announcements')
+        apiRequest<AnnouncementFeed>('/api/announcements'),
+        apiRequest<UpdateAssetsFeed>('/api/update/assets')
       ])
       appInfo.value = infoData
       updateFeed.value = updateData
       announcementFeed.value = announcementData
-      await loadUpdateAssets()
+      updateAssets.value = assetsData
+      writeFeedsCache()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      if (!options.silent) {
+        ElMessage.error(getErrorMessage(error))
+      }
     } finally {
       loading.value = false
     }
   }
 
-  async function loadUpdateAssets() {
+  async function loadUpdateAssets(options: { force?: boolean; silent?: boolean } = {}) {
+    const cached = readFeedsCache()
+
+    if (!options.force && applyFeedsCache(cached) && isFreshCache(cached)) {
+      return
+    }
+
     loadingAssets.value = true
     try {
       updateAssets.value = await apiRequest<UpdateAssetsFeed>('/api/update/assets')
+      writeFeedsCache()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      if (!options.silent) {
+        ElMessage.error(getErrorMessage(error))
+      }
     } finally {
       loadingAssets.value = false
     }
+  }
+
+  function readFeedsCache() {
+    try {
+      const raw = localStorage.getItem(ABOUT_FEED_CACHE_KEY)
+      if (!raw) return undefined
+      const cache = JSON.parse(raw) as AboutFeedCache
+      return typeof cache.cachedAt === 'number' ? cache : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  function applyFeedsCache(cache?: AboutFeedCache) {
+    if (!cache) return false
+    if (cache.appInfo) appInfo.value = cache.appInfo
+    if (cache.updateFeed) updateFeed.value = cache.updateFeed
+    if (cache.announcementFeed) announcementFeed.value = cache.announcementFeed
+    if (cache.updateAssets) updateAssets.value = cache.updateAssets
+    return Boolean(cache.appInfo || cache.updateFeed || cache.announcementFeed || cache.updateAssets)
+  }
+
+  function writeFeedsCache() {
+    const cache: AboutFeedCache = {
+      cachedAt: Date.now(),
+      appInfo: appInfo.value,
+      updateFeed: updateFeed.value,
+      announcementFeed: announcementFeed.value,
+      updateAssets: updateAssets.value
+    }
+
+    localStorage.setItem(ABOUT_FEED_CACHE_KEY, JSON.stringify(cache))
+  }
+
+  function isFreshCache(cache?: AboutFeedCache) {
+    return Boolean(cache && Date.now() - cache.cachedAt < ABOUT_FEED_CACHE_TTL_MS)
   }
 
   function tagType(level?: string) {
