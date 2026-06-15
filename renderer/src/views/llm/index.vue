@@ -205,7 +205,9 @@
         <div class="context-block">
           <h4>可执行动作</h4>
           <div class="tool-list">
-            <ElTag v-for="tool in toolNames" :key="tool" size="small" effect="plain">{{ tool }}</ElTag>
+            <ElTag v-for="tool in toolNames" :key="tool.key" size="small" effect="plain">
+              {{ tool.label }}
+            </ElTag>
           </div>
         </div>
       </ElCard>
@@ -267,47 +269,47 @@
   })
 
   const toolNames = [
-    'scanSessions',
-    'listSessions',
-    'getSession',
-    'openSession',
-    'createNewSession',
-    'getSessionWindow',
-    'listSessionWindows',
-    'closeSessionWindow',
-    'reopenSessionWindow',
-    'setNote',
-    'setCategory',
-    'bindPath',
-    'setSessionOptions',
-    'toggleFavorite',
-    'toggleArchived',
-    'deleteSession',
-    'batchSessions',
-    'listProfiles',
-    'upsertProfile',
-    'deleteProfile',
-    'getProfileFiles',
-    'saveProfileFiles',
-    'getCodexFile',
-    'saveCodexFile',
-    'getProjectAgents',
-    'saveProjectAgents',
-    'listSkills',
-    'getSkill',
-    'saveSkill',
-    'deleteSkill',
-    'listMcpServers',
-    'saveMcpServer',
-    'deleteMcpServer',
-    'getHooks',
-    'saveHooks',
-    'fetchSyncRegistry',
-    'installSyncItems',
-    'saveTranscriptEdits',
-    'resetTranscriptEdits',
-    'getUpdates',
-    'getAnnouncements'
+    { key: 'scanSessions', label: '扫描会话' },
+    { key: 'listSessions', label: '查询会话' },
+    { key: 'getSession', label: '会话详情' },
+    { key: 'openSession', label: '打开会话' },
+    { key: 'createNewSession', label: '新建会话' },
+    { key: 'getSessionWindow', label: '查看窗口' },
+    { key: 'listSessionWindows', label: '窗口列表' },
+    { key: 'closeSessionWindow', label: '关闭窗口' },
+    { key: 'reopenSessionWindow', label: '重开窗口' },
+    { key: 'setNote', label: '设置备注' },
+    { key: 'setCategory', label: '设置分类' },
+    { key: 'bindPath', label: '绑定路径' },
+    { key: 'setSessionOptions', label: '会话配置' },
+    { key: 'toggleFavorite', label: '收藏切换' },
+    { key: 'toggleArchived', label: '归档切换' },
+    { key: 'deleteSession', label: '删除会话' },
+    { key: 'batchSessions', label: '批量处理' },
+    { key: 'listProfiles', label: '查询 Profile' },
+    { key: 'upsertProfile', label: '保存 Profile' },
+    { key: 'deleteProfile', label: '删除 Profile' },
+    { key: 'getProfileFiles', label: '读取 Profile 文件' },
+    { key: 'saveProfileFiles', label: '保存 Profile 文件' },
+    { key: 'getCodexFile', label: '读取 Codex 文件' },
+    { key: 'saveCodexFile', label: '保存 Codex 文件' },
+    { key: 'getProjectAgents', label: '读取项目 AGENTS' },
+    { key: 'saveProjectAgents', label: '保存项目 AGENTS' },
+    { key: 'listSkills', label: '查询 Skills' },
+    { key: 'getSkill', label: '读取 Skill' },
+    { key: 'saveSkill', label: '保存 Skill' },
+    { key: 'deleteSkill', label: '删除 Skill' },
+    { key: 'listMcpServers', label: '查询 MCP' },
+    { key: 'saveMcpServer', label: '保存 MCP' },
+    { key: 'deleteMcpServer', label: '删除 MCP' },
+    { key: 'getHooks', label: '读取 Hooks' },
+    { key: 'saveHooks', label: '保存 Hooks' },
+    { key: 'fetchSyncRegistry', label: '读取同步仓库' },
+    { key: 'installSyncItems', label: '安装同步项' },
+    { key: 'saveTranscriptEdits', label: '保存聊天编辑' },
+    { key: 'resetTranscriptEdits', label: '还原聊天记录' },
+    { key: 'getUpdates', label: '读取更新' },
+    { key: 'getAnnouncements', label: '读取公告' }
   ]
   const permissionOptions = [
     { label: '只读', value: 'readonly' },
@@ -709,7 +711,8 @@
   }
 
   .llm-workspace {
-    height: calc(100dvh - 118px);
+    flex: 1 1 auto;
+    height: 100%;
     display: grid;
     grid-template-columns: 260px minmax(0, 1fr) 310px;
     gap: 16px;
@@ -722,6 +725,7 @@
     height: 100%;
     display: flex;
     flex-direction: column;
+    margin-top: 0;
     overflow: hidden;
   }
 
@@ -747,9 +751,12 @@
     }
   }
 
-  .conversation-panel :deep(.el-card__body),
-  .side-panel :deep(.el-card__body) {
+  .conversation-panel :deep(.el-card__body) {
     overflow: hidden;
+  }
+
+  .side-panel :deep(.el-card__body) {
+    overflow-y: auto;
   }
 
   .panel-header,
@@ -947,7 +954,7 @@
 
   .composer {
     display: grid;
-    gap: 10px;
+    gap: 8px;
   }
 
   .composer-footer span {

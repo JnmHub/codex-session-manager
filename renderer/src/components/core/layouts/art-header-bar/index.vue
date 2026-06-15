@@ -666,6 +666,7 @@
   .window-controls {
     display: flex;
     height: 36px;
+    margin-right: 12px;
     overflow: hidden;
     border: 1px solid var(--art-card-border);
     border-radius: 8px;

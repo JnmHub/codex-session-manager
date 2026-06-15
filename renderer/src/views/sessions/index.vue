@@ -252,7 +252,7 @@
       </ElTable>
     </ElCard>
 
-    <ElDrawer v-model="drawerVisible" size="720px" title="会话详情" append-to-body>
+    <ElDrawer v-model="drawerVisible" size="720px" title="会话详情" append-to-body class="session-detail-drawer">
       <ElTabs v-if="editingSession" v-model="detailTab">
         <ElTabPane label="配置" name="config">
           <ElForm label-position="top" class="detail-form">
@@ -345,46 +345,48 @@
             />
           </div>
         </ElTabPane>
-        <ElTabPane label="聊天记录" name="transcript">
-          <div class="transcript-toolbar">
-            <ElTag :type="transcriptEdited ? 'warning' : 'info'" effect="light">
-              {{ transcriptEdited ? '编辑副本' : '原始记录' }}
-            </ElTag>
-            <div>
-              <ElButton size="small" @click="loadTranscript">刷新</ElButton>
-              <ElButton size="small" type="warning" @click="resetTranscript">还原</ElButton>
-            </div>
-          </div>
-          <ElScrollbar height="520px" class="transcript-list">
-            <div
-              v-for="message in transcriptMessages"
-              :key="message.id"
-              class="transcript-message"
-              :class="`transcript-${message.role}`"
-            >
-              <div class="transcript-avatar">
-                {{ roleShortLabel(message.role) }}
+        <ElTabPane label="聊天记录" name="transcript" class="transcript-tab-pane">
+          <div class="transcript-panel">
+            <div class="transcript-toolbar">
+              <ElTag :type="transcriptEdited ? 'warning' : 'info'" effect="light">
+                {{ transcriptEdited ? '编辑副本' : '原始记录' }}
+              </ElTag>
+              <div>
+                <ElButton size="small" @click="loadTranscript">刷新</ElButton>
+                <ElButton size="small" type="warning" @click="resetTranscript">还原</ElButton>
               </div>
-              <div class="transcript-body">
-                <div class="message-meta">
-                  <div>
-                    <strong>{{ roleLabel(message.role) }}</strong>
-                    <span>{{ message.timestamp ? formatDate(message.timestamp) : 'unknown' }}</span>
-                  </div>
-                  <ElTag size="small" effect="plain" :type="message.source === 'edited' ? 'warning' : 'info'">
-                    {{ message.source === 'edited' ? '编辑副本' : '原始' }}
-                  </ElTag>
+            </div>
+            <ElScrollbar class="transcript-list">
+              <div
+                v-for="message in transcriptMessages"
+                :key="message.id"
+                class="transcript-message"
+                :class="`transcript-${message.role}`"
+              >
+                <div class="transcript-avatar">
+                  {{ roleShortLabel(message.role) }}
                 </div>
-                <ElInput
-                  v-model="message.text"
-                  type="textarea"
-                  :autosize="{ minRows: 3, maxRows: 14 }"
-                  resize="none"
-                  class="transcript-editor"
-                />
+                <div class="transcript-body">
+                  <div class="message-meta">
+                    <div>
+                      <strong>{{ roleLabel(message.role) }}</strong>
+                      <span>{{ message.timestamp ? formatDate(message.timestamp) : 'unknown' }}</span>
+                    </div>
+                    <ElTag size="small" effect="plain" :type="message.source === 'edited' ? 'warning' : 'info'">
+                      {{ message.source === 'edited' ? '编辑副本' : '原始' }}
+                    </ElTag>
+                  </div>
+                  <ElInput
+                    v-model="message.text"
+                    type="textarea"
+                    :autosize="{ minRows: 3, maxRows: 14 }"
+                    resize="none"
+                    class="transcript-editor"
+                  />
+                </div>
               </div>
-            </div>
-          </ElScrollbar>
+            </ElScrollbar>
+          </div>
         </ElTabPane>
       </ElTabs>
 
@@ -1404,6 +1406,35 @@
     margin-top: 10px;
   }
 
+  :global(.session-detail-drawer .el-drawer__body) {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  :global(.session-detail-drawer .el-tabs) {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  :global(.session-detail-drawer .el-tabs__content) {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  :global(.session-detail-drawer .el-tab-pane) {
+    min-height: 0;
+  }
+
+  :global(.session-detail-drawer .transcript-tab-pane) {
+    height: 100%;
+    overflow: hidden;
+  }
+
   .drawer-footer {
     display: flex;
     align-items: center;
@@ -1427,8 +1458,20 @@
     margin-bottom: 12px;
   }
 
+  .transcript-panel {
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
   .transcript-list {
+    min-height: 0;
     padding-right: 8px;
+
+    :deep(.el-scrollbar__wrap) {
+      overflow-x: hidden;
+    }
   }
 
   .transcript-message {
