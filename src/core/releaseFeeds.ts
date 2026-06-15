@@ -20,7 +20,7 @@ export type AnnouncementEntry = {
   url?: string;
 };
 
-const APP_VERSION = '0.2.6';
+const APP_VERSION = '0.2.7';
 const REPO_OWNER = 'JnmHub';
 const REPO_NAME = 'codex-session-manager';
 const RAW_BASE_URL = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main`;

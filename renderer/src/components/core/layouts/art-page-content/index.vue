@@ -14,29 +14,31 @@
       </div>
     </div>
 
-    <RouterView v-if="isRefresh" v-slot="{ Component, route }" :style="contentStyle">
-      <!-- 缓存路由动画 -->
-      <Transition :name="showTransitionMask ? '' : actualTransition" mode="out-in" appear>
-        <KeepAlive :max="10" :exclude="keepAliveExclude">
+    <div class="layout-scroll-body">
+      <RouterView v-if="isRefresh" v-slot="{ Component, route }" :style="contentStyle">
+        <!-- 缓存路由动画 -->
+        <Transition :name="showTransitionMask ? '' : actualTransition" mode="out-in" appear>
+          <KeepAlive :max="10" :exclude="keepAliveExclude">
+            <component
+              class="art-page-view"
+              :is="Component"
+              :key="route.path"
+              v-if="route.meta.keepAlive"
+            />
+          </KeepAlive>
+        </Transition>
+
+        <!-- 非缓存路由动画 -->
+        <Transition :name="showTransitionMask ? '' : actualTransition" mode="out-in" appear>
           <component
             class="art-page-view"
             :is="Component"
             :key="route.path"
-            v-if="route.meta.keepAlive"
+            v-if="!route.meta.keepAlive"
           />
-        </KeepAlive>
-      </Transition>
-
-      <!-- 非缓存路由动画 -->
-      <Transition :name="showTransitionMask ? '' : actualTransition" mode="out-in" appear>
-        <component
-          class="art-page-view"
-          :is="Component"
-          :key="route.path"
-          v-if="!route.meta.keepAlive"
-        />
-      </Transition>
-    </RouterView>
+        </Transition>
+      </RouterView>
+    </div>
 
     <!-- 全屏页面切换过渡遮罩（用于提升页面切换视觉体验） -->
     <Teleport to="body">
@@ -134,3 +136,23 @@
     })
   })
 </script>
+
+<style scoped lang="scss">
+  .layout-content {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #app-content-header {
+    flex: 0 0 auto;
+  }
+
+  .layout-scroll-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+</style>
