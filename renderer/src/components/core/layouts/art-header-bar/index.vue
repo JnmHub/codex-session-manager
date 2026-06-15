@@ -219,16 +219,46 @@
           </template>
           <div class="feed-popover">
             <div class="feed-title">
-              <strong>公告</strong>
-              <ElButton link type="primary" @click="goAbout">全部</ElButton>
+              <div class="feed-title-main">
+                <strong>公告</strong>
+                <ElTag v-if="announcementCount > 0" size="small" type="danger" effect="light">
+                  {{ announcementCount }} 条未读
+                </ElTag>
+                <ElTag v-else size="small" effect="light">已读完</ElTag>
+              </div>
+              <div class="feed-title-actions">
+                <ElButton link type="primary" @click="goAbout">全部</ElButton>
+                <ElButton
+                  link
+                  type="success"
+                  :disabled="announcementCount === 0"
+                  @click="markAllAnnouncementsRead"
+                >
+                  全部已读
+                </ElButton>
+              </div>
             </div>
             <div v-if="announcements.length" class="announcement-popover-list">
               <article v-for="item in announcements.slice(0, 4)" :key="item.id">
                 <div>
-                  <strong>{{ item.title }}</strong>
+                  <div class="announcement-title">
+                    <ElBadge is-dot :hidden="isAnnouncementRead(item.id)" />
+                    <strong>{{ item.title }}</strong>
+                  </div>
                   <span>{{ item.date }}</span>
                 </div>
                 <p>{{ item.content }}</p>
+                <div class="announcement-actions">
+                  <ElButton
+                    link
+                    size="small"
+                    type="success"
+                    :disabled="isAnnouncementRead(item.id)"
+                    @click="markAnnouncementRead(item.id)"
+                  >
+                    {{ isAnnouncementRead(item.id) ? '已读' : '标为已读' }}
+                  </ElButton>
+                </div>
               </article>
             </div>
             <ElEmpty v-else description="暂无公告" :image-size="70" />
@@ -317,7 +347,12 @@
   const appInfo = ref<AppInfo>()
   const updateFeed = ref<UpdateFeed>()
   const announcements = ref<AnnouncementEntry[]>([])
-  const announcementCount = computed(() => Math.min(announcements.value.length, 99))
+  const readAnnouncementIds = ref<string[]>([])
+  const ANNOUNCEMENT_READ_KEY = 'cxm-read-announcement-ids-v1'
+  const unreadAnnouncements = computed(() =>
+    announcements.value.filter((item) => !readAnnouncementIds.value.includes(item.id))
+  )
+  const announcementCount = computed(() => Math.min(unreadAnnouncements.value.length, 99))
   const { switchThemeStyles } = useTheme()
   const quickThemeOptions = [
     { label: '亮色', value: SystemThemeEnum.LIGHT, icon: 'ri:sun-line' },
@@ -346,6 +381,7 @@
 
   onMounted(() => {
     initLanguage()
+    readAnnouncementIds.value = loadReadAnnouncementIds()
     void loadReleaseFeeds()
   })
 
@@ -446,6 +482,7 @@
       appInfo.value = infoData
       updateFeed.value = updateData
       announcements.value = announcementData.entries
+      pruneReadAnnouncementIds()
     } catch {
       // 顶部提示是辅助信息，读取失败时不打断主流程。
     }
@@ -458,6 +495,43 @@
   function openUrl(url?: string) {
     if (!url) return
     window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  function loadReadAnnouncementIds() {
+    try {
+      const raw = localStorage.getItem(ANNOUNCEMENT_READ_KEY)
+      if (!raw) return []
+      const ids = JSON.parse(raw)
+      return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : []
+    } catch {
+      return []
+    }
+  }
+
+  function saveReadAnnouncementIds() {
+    localStorage.setItem(ANNOUNCEMENT_READ_KEY, JSON.stringify(readAnnouncementIds.value))
+  }
+
+  function isAnnouncementRead(id: string) {
+    return readAnnouncementIds.value.includes(id)
+  }
+
+  function markAnnouncementRead(id: string) {
+    if (isAnnouncementRead(id)) return
+    readAnnouncementIds.value = [...readAnnouncementIds.value, id]
+    saveReadAnnouncementIds()
+  }
+
+  function markAllAnnouncementsRead() {
+    const ids = announcements.value.map((item) => item.id)
+    readAnnouncementIds.value = Array.from(new Set([...readAnnouncementIds.value, ...ids]))
+    saveReadAnnouncementIds()
+  }
+
+  function pruneReadAnnouncementIds() {
+    const knownIds = new Set(announcements.value.map((item) => item.id))
+    readAnnouncementIds.value = readAnnouncementIds.value.filter((id) => knownIds.has(id))
+    saveReadAnnouncementIds()
   }
 
   function downloadUpdate(kind: 'setup' | 'portable') {
@@ -716,6 +790,21 @@
     gap: 10px;
   }
 
+  .feed-title-main,
+  .feed-title-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .feed-title-main {
+    min-width: 0;
+  }
+
+  .feed-title-actions {
+    flex: 0 0 auto;
+  }
+
   .feed-body {
     p {
       margin: 0 0 8px;
@@ -743,11 +832,18 @@
       background: var(--default-bg-color);
     }
 
-    div {
+    article > div:first-child {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
+    }
+
+    .announcement-title {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 8px;
     }
 
     strong {
@@ -772,6 +868,12 @@
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
     }
+  }
+
+  .announcement-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 4px;
   }
 
   .download-box {
