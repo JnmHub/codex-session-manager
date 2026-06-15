@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {fetchGithubUrl, githubAcceleratorBaseUrl, toGithubProxyUrl} from './githubProxy.js';
 
 export type VersionEntry = {
@@ -20,7 +21,7 @@ export type AnnouncementEntry = {
   url?: string;
 };
 
-const APP_VERSION = '0.2.8';
+const FALLBACK_APP_VERSION = '0.2.9';
 const REPO_OWNER = 'JnmHub';
 const REPO_NAME = 'codex-session-manager';
 const RAW_BASE_URL = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main`;
@@ -29,9 +30,11 @@ const RELEASES_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases`;
 const FEED_TIMEOUT_MS = 4500;
 
 export async function getAppInfo() {
+  const appVersion = await getAppVersion();
+
   return {
     name: 'Codex会话管家',
-    version: APP_VERSION,
+    version: appVersion,
     author: 'Jnm',
     copyright: 'Jnm Copyright',
     repository: `https://github.com/${REPO_OWNER}/${REPO_NAME}`,
@@ -46,13 +49,14 @@ export async function getAppInfo() {
 }
 
 export async function getVersionFeed() {
+  const appVersion = await getAppVersion();
   const entries = sortVersions(await readJsonlFeed<VersionEntry>('version.jsonl'));
   const latest = entries[0];
 
   return {
-    currentVersion: APP_VERSION,
-    latestVersion: latest?.version ?? APP_VERSION,
-    hasUpdate: latest ? compareVersions(latest.version, APP_VERSION) > 0 : false,
+    currentVersion: appVersion,
+    latestVersion: latest?.version ?? appVersion,
+    hasUpdate: latest ? compareVersions(latest.version, appVersion) > 0 : false,
     latest,
     entries
   };
@@ -75,6 +79,29 @@ async function readJsonlFeed<T>(fileName: 'version.jsonl' | 'announcement.jsonl'
     const localText = await readLocalFeed(fileName);
     return parseJsonl<T>(localText);
   }
+}
+
+async function getAppVersion() {
+  const currentFile = fileURLToPath(import.meta.url);
+  const candidates = [
+    path.resolve(process.cwd(), 'package.json'),
+    path.resolve(path.dirname(currentFile), '..', '..', 'package.json'),
+    process.resourcesPath ? path.resolve(process.resourcesPath, 'app.asar', 'package.json') : '',
+    process.resourcesPath ? path.resolve(process.resourcesPath, 'package.json') : ''
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      const packageJson = JSON.parse(await fs.readFile(candidate, 'utf8')) as {version?: string};
+      if (packageJson.version) {
+        return packageJson.version;
+      }
+    } catch {
+      // Try the next package.json location.
+    }
+  }
+
+  return FALLBACK_APP_VERSION;
 }
 
 async function fetchText(url: string) {

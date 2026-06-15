@@ -193,6 +193,7 @@
 
   type AboutFeedCache = {
     cachedAt: number
+    appVersion?: string
     appInfo?: AppInfo
     updateFeed?: UpdateFeed
     announcementFeed?: AnnouncementFeed
@@ -210,27 +211,42 @@
   )
 
   onMounted(() => {
-    const cached = readFeedsCache()
-    const hasCached = applyFeedsCache(cached)
+    void initializeFeeds()
+  })
 
-    if (hasCached && isFreshCache(cached)) {
+  async function initializeFeeds() {
+    const cached = readFeedsCache()
+    let infoData: AppInfo | undefined
+
+    try {
+      infoData = await apiRequest<AppInfo>('/api/app-info')
+      appInfo.value = infoData
+    } catch {
+      // 本地版本信息失败时，仍允许展示已有缓存，后续 loadFeeds 会给出错误提示。
+    }
+
+    const compatibleCache = getCompatibleCache(cached, infoData?.version)
+    const hasCached = applyFeedsCache(compatibleCache)
+
+    if (hasCached && isFreshCache(compatibleCache)) {
       return
     }
 
-    void loadFeeds({ silent: hasCached })
-  })
+    void loadFeeds({ silent: hasCached, appInfo: infoData })
+  }
 
-  async function loadFeeds(options: { force?: boolean; silent?: boolean } = {}) {
+  async function loadFeeds(options: { force?: boolean; silent?: boolean; appInfo?: AppInfo } = {}) {
     const cached = readFeedsCache()
+    const compatibleCache = getCompatibleCache(cached, options.appInfo?.version || appInfo.value?.version)
 
-    if (!options.force && applyFeedsCache(cached) && isFreshCache(cached)) {
+    if (!options.force && applyFeedsCache(compatibleCache) && isFreshCache(compatibleCache)) {
       return
     }
 
     loading.value = !options.silent
     try {
       const [infoData, updateData, announcementData, assetsData] = await Promise.all([
-        apiRequest<AppInfo>('/api/app-info'),
+        options.appInfo ? Promise.resolve(options.appInfo) : apiRequest<AppInfo>('/api/app-info'),
         apiRequest<UpdateFeed>('/api/updates'),
         apiRequest<AnnouncementFeed>('/api/announcements'),
         apiRequest<UpdateAssetsFeed>('/api/update/assets')
@@ -251,8 +267,9 @@
 
   async function loadUpdateAssets(options: { force?: boolean; silent?: boolean } = {}) {
     const cached = readFeedsCache()
+    const compatibleCache = getCompatibleCache(cached, appInfo.value?.version)
 
-    if (!options.force && applyFeedsCache(cached) && isFreshCache(cached)) {
+    if (!options.force && applyFeedsCache(compatibleCache) && isFreshCache(compatibleCache)) {
       return
     }
 
@@ -267,6 +284,19 @@
     } finally {
       loadingAssets.value = false
     }
+  }
+
+  function getCompatibleCache(cache?: AboutFeedCache, currentVersion?: string) {
+    if (!cache) return undefined
+    if (!currentVersion) return cache
+
+    const cacheVersion = cache.appVersion || cache.appInfo?.version || cache.updateFeed?.currentVersion
+    if (cacheVersion === currentVersion) {
+      return cache
+    }
+
+    localStorage.removeItem(ABOUT_FEED_CACHE_KEY)
+    return undefined
   }
 
   function readFeedsCache() {
@@ -292,6 +322,7 @@
   function writeFeedsCache() {
     const cache: AboutFeedCache = {
       cachedAt: Date.now(),
+      appVersion: appInfo.value?.version || updateFeed.value?.currentVersion,
       appInfo: appInfo.value,
       updateFeed: updateFeed.value,
       announcementFeed: announcementFeed.value,
