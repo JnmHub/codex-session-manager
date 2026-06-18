@@ -237,5 +237,6 @@ async function writeCodexTextFile(filePath: string, content: string) {
   if (resolved !== codexHome && !resolved.startsWith(`${codexHome}${path.sep}`)) {
     throw new Error('Refusing to write outside CODEX_HOME');
   }
+  await fs.mkdir(path.dirname(resolved), {recursive: true});
   await fs.writeFile(resolved, content, 'utf8');
 }
