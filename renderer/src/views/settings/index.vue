@@ -219,6 +219,17 @@
   .settings-page {
     display: grid;
     gap: 16px;
+    min-height: 0;
+
+    :deep(.art-table-card) {
+      min-height: 0;
+    }
+
+    :deep(.el-card__body) {
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
   }
 
   .page-header {
