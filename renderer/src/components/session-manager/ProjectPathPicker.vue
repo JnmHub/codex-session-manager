@@ -63,9 +63,10 @@
     category?: string
   }
 
-  defineProps<{
+  const props = defineProps<{
     modelValue: string
     placeholder?: string
+    nativePicker?: boolean
   }>()
 
   const emit = defineEmits<{
@@ -89,6 +90,15 @@
   })
 
   async function openDialog() {
+    if (props.nativePicker && window.sessionManager?.selectDirectory) {
+      const value = await window.sessionManager.selectDirectory()
+      if (value) {
+        emit('update:modelValue', value)
+        emit('change', value)
+      }
+      return
+    }
+
     visible.value = true
     if (!sessions.value.length) {
       await loadSessions()

@@ -410,7 +410,8 @@
         <ElFormItem label="工作区路径">
           <ProjectPathPicker
             v-model="newSessionForm.workspacePath"
-            placeholder="例如 C:\Users\jnmgp\Desktop\new-project，或从已有会话选择"
+            native-picker
+            placeholder="例如 C:\Users\jnmgp\Desktop\new-project，或选择文件夹"
           />
         </ElFormItem>
         <ElFormItem>
